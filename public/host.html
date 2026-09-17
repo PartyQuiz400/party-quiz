@@ -130,9 +130,7 @@
 
         socket.emit('create-room', roomId);
 
-        // ⚠️ ΑΛΛΑΞΤΕ ΤΟ ΜΕ ΤΗ ΔΙΚΗ ΣΑΣ IP ⚠️
-        const myIp = '192.168.1.232';
-        const joinUrl = `http://${myIp}:3000/player.html?room=${roomId}`;
+       const joinUrl = `${window.location.origin}/player.html?room=${roomId}`;
 
         QRCode.toCanvas(joinUrl, { width: 180 }, function (err, canvas) {
             if (!err) document.getElementById('qr-code').appendChild(canvas);
