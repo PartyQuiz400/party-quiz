@@ -98,7 +98,7 @@ const ROUND_MODES = [
     { id: 1, name: "Γύρος 1: Γρήγορο Δάχτυλο", desc: "Όσο πιο γρήγορα απαντάτε, τόσο περισσότερους πόντους κερδίζετε!" },
     { id: 2, name: "Γύρος 2: Μάχη Buzzer", desc: "Πατήστε πρώτοι το Κόκκινο Buzzer για να κλειδώσετε την απάντηση!" },
     { id: 3, name: "Γύρος 3: Κλέψιμο Πόντων", desc: "Με σωστή απάντηση κλέβετε 20 πόντους από τον 1ο στην κατάταξη!" },
-    { id: 4, name: "Γύρος 4: Αντίστροφη Μέτρηση (10s)", desc: "Έχετε 10 δευτερόλεπτα για κάθε ερώτηση!" },
+    { id: 4, name: "Γύρος 4: Αντίστροφη Μέτρηση (2s)", desc: "Έχετε μόλις 2 δευτερόλεπτα για κάθε ερώτηση!" },
     { id: 5, name: "Γύρος 5: Διπλοί Πόντοι", desc: "Όλοι οι πόντοι διπλασιάζονται σε αυτόν τον γύρο!" },
     { id: 6, name: "Γύρος 6 (ΤΕΛΙΚΟΣ): Time Attack", desc: "Σωστό = +5s, Λάθος = -10s! Στους 2 παίκτες, ο πιο γρήγορος κλέβει +5s!" }
 ];
@@ -230,7 +230,7 @@ io.on('connection', (socket) => {
             const sorted = [...playerList].sort((a, b) => b.score - a.score);
             chooser = sorted[0];
         } else if (round === 6) {
-            room.currentCategoryName = "Γενικές Γνώσεις";
+            room.currentCategoryName = "ΤΕΛΙΚΟΣ (Time Attack)";
             room.currentQuestionIndex = 0;
             startFinalRound(roomId);
             return;
@@ -299,8 +299,9 @@ io.on('connection', (socket) => {
                 category: room.currentCategoryName
             });
 
+            // ΓΥΡΟΣ 4: ΑΝΤΙΣΤΡΟΦΗ ΜΕΤΡΗΣΗ 2 ΔΕΥΤΕΡΟΛΕΠΤΩΝ
             if (roundMode.id === 4) {
-                let timeLeft = 10;
+                let timeLeft = 2; 
                 io.to(roomId).emit('timer-tick', timeLeft);
                 room.timer = setInterval(() => {
                     timeLeft--;
@@ -364,7 +365,26 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        room.loadedQuestions = getQuestionsByCategory("Γενικές Γνώσεις", 25);
+        // Φόρτωση ερωτήσεων με ασφάλεια (fallback σε όλες τις κατηγορίες αν δεν υπάρχει η "Γενικές Γνώσεις")
+        let finalQuestions = localQuestions["Γενικές Γνώσεις"] || [];
+        if (finalQuestions.length === 0) {
+            const allCategories = Object.keys(localQuestions);
+            allCategories.forEach(cat => {
+                finalQuestions = finalQuestions.concat(localQuestions[cat]);
+            });
+        }
+
+        const shuffled = [...finalQuestions].sort(() => Math.random() - 0.5);
+        room.loadedQuestions = shuffled.slice(0, 30);
+
+        if (room.loadedQuestions.length === 0) {
+            room.loadedQuestions = [{
+                q: "Ποια είναι η πρωτεύουσα της Ελλάδας;",
+                options: ["Θεσσαλονίκη", "Αθήνα", "Πάτρα", "Ηράκλειο"],
+                correct: 1
+            }];
+        }
+
         sendFinalQuestion(roomId);
 
         if (room.finalRoundInterval) clearInterval(room.finalRoundInterval);
