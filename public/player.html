@@ -70,6 +70,7 @@
             box-shadow: 0 8px 0 #500000;
             cursor: pointer;
             margin: 5px 0;
+            outline: none;
         }
         .red-buzzer:active { transform: translateY(6px); box-shadow: 0 2px 0 #500000; }
 
@@ -117,23 +118,41 @@
             box-shadow: 0 0 15px rgba(255, 255, 255, 0.9);
             transform: scale(1.02);
         }
+
+        #game-over-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #121212; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; padding: 20px; z-index: 200;
+        }
     </style>
 </head>
 <body>
 
+    <!-- BANNERS & OVERLAYS -->
     <div id="mobile-banner" style="display: none;">
         <h1 id="m-banner-title" style="color: #66fcf1;"></h1>
         <p id="m-banner-desc" style="color: #ffeb3b; font-size: 20px;"></p>
     </div>
 
+    <!-- GAME OVER OVERLAY -->
+    <div id="game-over-screen" style="display: none;">
+        <h1 style="font-size: 50px; margin: 0;">🏆</h1>
+        <h2>Μεγάλος νικητής: <span id="winner-name" style="color: #66fcf1;"></span>!</h2>
+        <div style="border: 2px dashed #f1c40f; padding: 15px; margin-top: 15px; border-radius: 10px; max-width: 90%;">
+            <p id="winner-quote" style="font-style: italic; font-weight: bold; color: #f1c40f; font-size: 18px; margin: 0;"></p>
+        </div>
+    </div>
+
+    <!-- LOGIN SCREEN -->
     <div id="login-screen" class="login-box">
         <h2 style="color: #66fcf1;">PartyQuiz Controller</h2>
         <input type="text" id="room-input" placeholder="Κωδικός Δωματίου">
-        <input type="text" id="name-input" placeholder="Το όνομά σου">
+        <input type="text" id="name-input" placeholder="Το όνομά σου" maxlength="12">
         <button class="btn-join" onclick="joinGame()">ΣΥΝΔΕΣΗ</button>
         <p id="error-msg" style="color: #ff5252;"></p>
     </div>
 
+    <!-- MAIN GAME SCREEN -->
     <div id="game-screen" style="display: none;">
         <div class="buzz-controller">
             
@@ -162,10 +181,14 @@
         let myName = '';
         let isChoosingCategory = false;
 
+        // Αυτόματη συμπλήρωση του Room ID από το QR code URL
         const urlParams = new URLSearchParams(window.location.search);
         const roomFromUrl = urlParams.get('room');
-        if (roomFromUrl) document.getElementById('room-input').value = roomFromUrl;
+        if (roomFromUrl) {
+            document.getElementById('room-input').value = roomFromUrl;
+        }
 
+        // Αποφυγή scroll στο κινητό
         document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
 
         function triggerVibration(pattern = 60) {
@@ -305,17 +328,12 @@
                 document.getElementById('score-display').innerText = `⏳ ${me.timeLeft}s`;
             }
         });
-       // <!-- ΟΘΟΝΗ GAME OVER ΣΤΑ ΚΙΝΗΤΑ -->
-        <div id="game-over-screen" class="screen" style="display: none; text-align: center; padding: 20px;">
-            🏆
-            <h2>Μεγάλος νικητής: <span id="winner-name"></span>!</h2>
-            <div style="border: 2px dashed #f1c40f; padding: 15px; margin-top: 15px; border-radius: 10px;">
-                <p id="winner-quote" style="font-style: italic; font-weight: bold; color: #f1c40f;"></p>
-            </div>
-        </div>
-        
+
+        socket.on('game-over', (data) => {
+            document.getElementById('winner-name').innerText = data.winnerName;
+            document.getElementById('winner-quote').innerText = data.quote;
+            document.getElementById('game-over-screen').style.display = 'flex';
+        });
     </script>
-    <script src="/socket.io/socket.io.js"></script>
-    <script src="player.js"></script>
 </body>
 </html>
