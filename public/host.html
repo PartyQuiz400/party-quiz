@@ -45,6 +45,20 @@
             background: #0b0c10; display: flex; flex-direction: column;
             justify-content: center; align-items: center; z-index: 1000;
         }
+
+        .wrong-answer {
+          opacity: 0.25 !important;
+          filter: grayscale(100%) !important;
+          transition: all 0.5s ease;
+        }
+        
+        .correct-answer {
+          opacity: 1 !important;
+          transform: scale(1.05);
+          box-shadow: 0 0 15px rgba(40, 167, 69, 0.8);
+          transition: all 0.5s ease;
+        }
+        
     </style>
 </head>
 <body>
