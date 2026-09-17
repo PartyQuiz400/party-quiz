@@ -305,6 +305,15 @@
                 document.getElementById('score-display').innerText = `⏳ ${me.timeLeft}s`;
             }
         });
+       // <!-- ΟΘΟΝΗ GAME OVER ΣΤΑ ΚΙΝΗΤΑ -->
+        <div id="game-over-screen" class="screen" style="display: none; text-align: center; padding: 20px;">
+            🏆
+            <h2>Μεγάλος νικητής: <span id="winner-name"></span>!</h2>
+            <div style="border: 2px dashed #f1c40f; padding: 15px; margin-top: 15px; border-radius: 10px;">
+                <p id="winner-quote" style="font-style: italic; font-weight: bold; color: #f1c40f;"></p>
+            </div>
+        </div>
+        
     </script>
     <script src="/socket.io/socket.io.js"></script>
     <script src="player.js"></script>
