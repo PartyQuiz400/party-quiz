@@ -31,7 +31,7 @@
         .cat-3 { background: #8e44ad; border-bottom: 8px solid #4a235a; }
 
         .grid-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
-        .opt-box { padding: 22px; font-size: 22px; border-radius: 15px; color: white; font-weight: bold; text-align: left; padding-left: 25px; text-shadow: 1px 1px 2px black; }
+        .opt-box { padding: 22px; font-size: 22px; border-radius: 15px; color: white; font-weight: bold; text-align: left; padding-left: 25px; text-shadow: 1px 1px 2px black; transition: all 0.4s ease; }
         .opt-0 { background: #007bb5; border-left: 10px solid #004477; }
         .opt-1 { background: #ffcc00; color: black; text-shadow: none; border-left: 10px solid #998000; }
         .opt-2 { background: #28a745; border-left: 10px solid #145523; }
@@ -47,18 +47,17 @@
         }
 
         .wrong-answer {
-          opacity: 0.25 !important;
-          filter: grayscale(100%) !important;
-          transition: all 0.5s ease;
+            opacity: 0.25 !important;
+            filter: grayscale(100%) !important;
+            transform: scale(0.96);
         }
         
         .correct-answer {
-          opacity: 1 !important;
-          transform: scale(1.05);
-          box-shadow: 0 0 15px rgba(40, 167, 69, 0.8);
-          transition: all 0.5s ease;
+            opacity: 1 !important;
+            transform: scale(1.05);
+            box-shadow: 0 0 25px rgba(40, 167, 69, 1);
+            border: 3px solid #28a745 !important;
         }
-        
     </style>
 </head>
 <body>
@@ -144,7 +143,7 @@
 
         socket.emit('create-room', roomId);
 
-       const joinUrl = `${window.location.origin}/player.html?room=${roomId}`;
+        const joinUrl = `${window.location.origin}/player.html?room=${roomId}`;
 
         QRCode.toCanvas(joinUrl, { width: 180 }, function (err, canvas) {
             if (!err) document.getElementById('qr-code').appendChild(canvas);
@@ -174,19 +173,16 @@
         });
         
         socket.on('show-answer', (data) => {
-          // data.correctIndex είναι ο δείκτης της σωστής απάντησης (0, 1, 2, 3)
-          const optionButtons = document.querySelectorAll('.option-btn'); // ή η κλάση των κουμπιών σου
-          
-          optionButtons.forEach((btn, index) => {
-            if (index === data.correctIndex) {
-              btn.classList.add('correct-answer'); // Διατηρεί το χρώμα / γίνεται πράσινο
-              btn.style.opacity = '1';
-            } else {
-              btn.classList.add('wrong-answer'); // Μαυρίζει/γκριζάρει
-              btn.style.opacity = '0.3';
-              btn.style.filter = 'grayscale(100%)';
-            }
-          });
+            [0, 1, 2, 3].forEach((idx) => {
+                const el = document.getElementById(`opt-${idx}`);
+                if (idx === data.correctIndex) {
+                    el.classList.add('correct-answer');
+                    el.classList.remove('wrong-answer');
+                } else {
+                    el.classList.add('wrong-answer');
+                    el.classList.remove('correct-answer');
+                }
+            });
         });
         
         socket.on('show-category-options-host', (data) => {
@@ -213,6 +209,11 @@
 
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('quiz-screen').style.display = 'block';
+
+            [0, 1, 2, 3].forEach(idx => {
+                const el = document.getElementById(`opt-${idx}`);
+                el.classList.remove('correct-answer', 'wrong-answer');
+            });
 
             const timerEl = document.getElementById('timer-display');
             if (isFinalRoundMode) {
@@ -297,7 +298,6 @@
 
         function startInfiniteFireworks() {
             if (fireworksInterval) clearInterval(fireworksInterval);
-            
             if (typeof confetti !== 'function') return;
 
             const defaults = { startVelocity: 35, spread: 360, ticks: 80, zIndex: 999999 };
@@ -327,7 +327,7 @@
                 <div class="player-row">
                     <span><strong>${i+1}. ${p.name} ${p.isReady ? '✅ (READY)' : '⏳'}</strong></span>
                     <span style="color: #66fcf1; font-weight: bold;">
-                        ${showTime ? `${p.timeLeft}s ${p.eliminated ? '❌' : ''}` : `${p.score} πόντοι`}
+                        ${showTime ? `${p.timeLeft}s${p.eliminated ? '❌' : ''}` : `${p.score} πόντοι`}
                     </span>
                 </div>
             `).join('');
