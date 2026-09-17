@@ -307,8 +307,7 @@ io.on('connection', (socket) => {
                     io.to(roomId).emit('timer-tick', timeLeft);
                     if (timeLeft <= 0) {
                         clearInterval(room.timer);
-                        room.questionActive = false;
-                        setTimeout(() => nextQuestionInternal(roomId), 1500);
+                        revealAnswerAndNext(roomId, q.correct);
                     }
                 }, 1000);
             }
@@ -345,11 +344,27 @@ io.on('connection', (socket) => {
         }
     }
 
+    function revealAnswerAndNext(roomId, correctIndex) {
+        const room = rooms[roomId];
+        if (!room) return;
+
+        room.questionActive = false;
+        io.to(roomId).emit('show-answer', { correctIndex });
+
+        setTimeout(() => {
+            if (room.currentRound === 6) {
+                sendFinalQuestion(roomId);
+            } else {
+                nextQuestionInternal(roomId);
+            }
+        }, 2200);
+    }
+
     function startFinalRound(roomId) {
         const room = rooms[roomId];
         if (!room) return;
 
-        room.loadedQuestions = getQuestionsByCategory("Γενικές Γνώσεις", 15);
+        room.loadedQuestions = getQuestionsByCategory("Γενικές Γνώσεις", 25);
         sendFinalQuestion(roomId);
 
         if (room.finalRoundInterval) clearInterval(room.finalRoundInterval);
@@ -454,7 +469,7 @@ io.on('connection', (socket) => {
             const allAnswered = remainingActive.every(p => p.hasAnswered);
 
             if (allAnswered && remainingActive.length > 0) {
-                setTimeout(() => sendFinalQuestion(roomId), 800);
+                revealAnswerAndNext(roomId, room.currentFinalQ.correct);
             }
             return;
         }
@@ -494,8 +509,7 @@ io.on('connection', (socket) => {
         const allAnswered = Object.values(room.players).every(p => p.hasAnswered);
         if (allAnswered || roundMode.id === 2) {
             if (room.timer) clearInterval(room.timer);
-            room.questionActive = false;
-            setTimeout(() => nextQuestionInternal(roomId), 1500);
+            revealAnswerAndNext(roomId, currentQ.correct);
         }
     });
 
