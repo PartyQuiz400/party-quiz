@@ -103,6 +103,20 @@
             background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
             justify-content: center; align-items: center; padding: 20px; z-index: 100;
         }
+
+        .wrong-answer {
+          opacity: 0.25 !important;
+          filter: grayscale(100%) !important;
+          transition: all 0.5s ease;
+        }
+        
+        .correct-answer {
+          opacity: 1 !important;
+          transform: scale(1.05);
+          box-shadow: 0 0 15px rgba(40, 167, 69, 0.8);
+          transition: all 0.5s ease;
+        }
+        
     </style>
 </head>
 <body>
