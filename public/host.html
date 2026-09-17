@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <title>PartyQuiz - Κεντρική Οθόνη</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #0b0c10; color: white; margin: 0; padding: 20px; overflow-x: hidden; }
+        .container { max-width: 950px; margin: 0 auto; }
+        #qr-code canvas { border: 6px solid #66fcf1; border-radius: 12px; margin: 15px 0; }
+        
+        #round-banner {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: rgba(11, 12, 16, 0.96); display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 999;
+        }
+        #round-banner h1 { font-size: 50px; color: #66fcf1; margin-bottom: 15px; }
+        #round-banner p { font-size: 28px; color: #ffeb3b; max-width: 800px; }
+
+        .top-leaderboard { background: #1f2833; padding: 20px; border-radius: 15px; border: 2px solid #45a29e; margin-bottom: 25px; }
+        .player-list-vertical { display: flex; flex-direction: column; gap: 10px; margin-top: 15px; }
+        .player-row { background: #0b0c10; padding: 14px 20px; border-radius: 8px; border-left: 6px solid #66fcf1; font-size: 20px; text-align: left; display: flex; justify-content: space-between; align-items: center; }
+
+        .quote-box { background: #2c3e50; border: 2px dashed #f1c40f; color: #f1c40f; padding: 18px; border-radius: 12px; font-size: 28px; font-weight: bold; margin-bottom: 20px; font-style: italic; }
+        .auto-timer { font-size: 22px; color: #ff4c4c; font-weight: bold; margin-top: 15px; }
+
+        .categories-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 25px; }
+        .cat-box { padding: 30px; font-size: 24px; font-weight: bold; border-radius: 15px; color: white; text-shadow: 1px 1px 3px black; border: none; }
+        .cat-0 { background: #007bb5; border-bottom: 8px solid #004477; }
+        .cat-1 { background: #ffcc00; color: black; text-shadow: none; border-bottom: 8px solid #998000; }
+        .cat-2 { background: #28a745; border-bottom: 8px solid #145523; }
+        .cat-3 { background: #8e44ad; border-bottom: 8px solid #4a235a; }
+
+        .grid-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .opt-box { padding: 22px; font-size: 22px; border-radius: 15px; color: white; font-weight: bold; text-align: left; padding-left: 25px; text-shadow: 1px 1px 2px black; }
+        .opt-0 { background: #007bb5; border-left: 10px solid #004477; }
+        .opt-1 { background: #ffcc00; color: black; text-shadow: none; border-left: 10px solid #998000; }
+        .opt-2 { background: #28a745; border-left: 10px solid #145523; }
+        .opt-3 { background: #8e44ad; border-left: 10px solid #4a235a; }
+
+        .badge { background: #c5a059; color: black; padding: 6px 16px; border-radius: 20px; font-size: 18px; font-weight: bold; }
+        #timer-display { font-size: 32px; color: #ff4c4c; font-weight: bold; margin-top: 10px; }
+
+        #winner-screen {
+            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+            background: #0b0c10; display: flex; flex-direction: column;
+            justify-content: center; align-items: center; z-index: 1000;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+
+        <!-- Banner Γύρου -->
+        <div id="round-banner" style="display: none;">
+            <h1 id="banner-title">ΓΥΡΟΣ 1</h1>
+            <p id="banner-desc">Περιγραφή mode...</p>
+        </div>
+
+        <!-- Setup Screen -->
+        <div id="setup-screen">
+            <h1 style="font-size: 42px; color: #66fcf1;">PARTYQUIZ 🎙️</h1>
+            <div id="qr-area">
+                <h2>Σκανάρετε για να συνδεθείτε (Έως 12 Παίκτες):</h2>
+                <div id="qr-code"></div>
+                <h3>Κωδικός Δωματίου: <span id="room-code" style="color: #66fcf1;">----</span></h3>
+                <h2 style="color: #ffeb3b; margin-top: 15px;" id="ready-status">🔴 Πατήστε το Buzzer στο κινητό για να ξεκινήσουμε! (0/0)</h2>
+            </div>
+
+            <h2>Συνδεδεμένοι Παίκτες:</h2>
+            <div id="players-list" class="player-list-vertical"></div>
+
+            <div id="category-selection-area" style="margin-top: 30px; display: none;">
+                <h2 style="color: #ffeb3b; font-size: 26px;" id="chooser-text"></h2>
+                <div class="categories-grid" id="categories-container"></div>
+            </div>
+        </div>
+
+        <!-- Quiz Screen -->
+        <div id="quiz-screen" style="display: none;">
+            <div class="top-leaderboard">
+                <h2 style="margin: 0 0 10px 0; color: #66fcf1;">📊 LIVE Κατάταξη Παικτών</h2>
+                <div id="scores-list" class="player-list-vertical"></div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="round-info" class="badge"></h3>
+                <h3 id="category-info" style="color: #66fcf1;"></h3>
+                <h3 id="question-num"></h3>
+            </div>
+            
+            <p id="round-desc" style="color: #aaa; font-style: italic; font-size: 18px;"></p>
+            <div id="timer-display" style="display: none;"></div>
+
+            <h1 id="question-text" style="margin: 20px 0; font-size: 28px;"></h1>
+
+            <div class="grid-options">
+                <div class="opt-box opt-0" id="opt-0"></div>
+                <div class="opt-box opt-1" id="opt-1"></div>
+                <div class="opt-box opt-2" id="opt-2"></div>
+                <div class="opt-box opt-3" id="opt-3"></div>
+            </div>
+        </div>
+
+        <!-- Round End Screen -->
+        <div id="round-end-screen" style="display: none;">
+            <h1 style="color: #66fcf1;">🏁 Τέλος Γύρου!</h1>
+            <div id="quote-display" class="quote-box"></div>
+            <div class="top-leaderboard">
+                <h2>Κατάταξη Γύρου</h2>
+                <div id="round-scores-list" class="player-list-vertical"></div>
+            </div>
+            <div id="auto-timer-display" class="auto-timer">⏳ Ο επόμενος γύρος ξεκινάει σε 15...</div>
+        </div>
+
+        <!-- Winner Screen -->
+        <div id="winner-screen" style="display: none;">
+            <h1 id="winner-title" style="color: #ffeb3b; font-size: 60px; margin-bottom: 20px; text-shadow: 0 0 20px #ffeb3b;"></h1>
+            <div id="winner-quote" class="quote-box" style="max-width: 800px; font-size: 32px; padding: 25px;"></div>
+        </div>
+
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <script>
+        const socket = io();
+        const roomId = Math.floor(1000 + Math.random() * 9000).toString();
+        document.getElementById('room-code').innerText = roomId;
+
+        socket.emit('create-room', roomId);
+
+        // ⚠️ ΑΛΛΑΞΤΕ ΤΟ ΜΕ ΤΗ ΔΙΚΗ ΣΑΣ IP ⚠️
+        const myIp = '192.168.1.232';
+        const joinUrl = `http://${myIp}:3000/player.html?room=${roomId}`;
+
+        QRCode.toCanvas(joinUrl, { width: 180 }, function (err, canvas) {
+            if (!err) document.getElementById('qr-code').appendChild(canvas);
+        });
+
+        let countdownInterval = null;
+        let isFinalRoundMode = false;
+        let fireworksInterval = null;
+
+        socket.on('ready-update', (data) => {
+            document.getElementById('ready-status').innerText = `🔴 Πατήστε το Buzzer στο κινητό για να ξεκινήσουμε! (${data.readyCount}/${data.totalCount})`;
+        });
+
+        socket.on('show-round-intro', (data) => {
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('round-end-screen').style.display = 'none';
+            document.getElementById('quiz-screen').style.display = 'none';
+
+            const banner = document.getElementById('round-banner');
+            document.getElementById('banner-title').innerText = data.modeName;
+            document.getElementById('banner-desc').innerText = data.desc;
+            banner.style.display = 'flex';
+
+            setTimeout(() => {
+                banner.style.display = 'none';
+            }, 3200);
+        });
+
+        socket.on('show-category-options-host', (data) => {
+            document.getElementById('setup-screen').style.display = 'block';
+            document.getElementById('qr-area').style.display = 'none';
+            document.getElementById('category-selection-area').style.display = 'block';
+            
+            document.getElementById('chooser-text').innerText = `🎯 Γύρος ${data.round}: Ο/Η "${data.chooserName}" επιλέγει κατηγορία από το κινητό!`;
+
+            const container = document.getElementById('categories-container');
+            container.innerHTML = data.categories.map((cat, idx) => `
+                <div class="cat-box cat-${idx}">${cat}</div>
+            `).join('');
+        });
+
+        socket.on('update-players', (players) => {
+            renderScores('scores-list', players, isFinalRoundMode);
+            renderScores('players-list', players, false);
+        });
+
+        socket.on('new-question', (data) => {
+            if (countdownInterval) clearInterval(countdownInterval);
+            isFinalRoundMode = (data.round === 6);
+
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('quiz-screen').style.display = 'block';
+
+            const timerEl = document.getElementById('timer-display');
+            if (isFinalRoundMode) {
+                timerEl.style.display = 'none';
+            } else if (data.round === 4) {
+                timerEl.style.display = 'block';
+            } else {
+                timerEl.style.display = 'none';
+            }
+
+            document.getElementById('round-info').innerText = `Γύρος ${data.round}`;
+            document.getElementById('round-desc').innerText = data.roundMode.desc;
+            document.getElementById('category-info').innerText = `Κατηγορία: ${data.category}`;
+            document.getElementById('question-num').innerText = isFinalRoundMode ? 'ΤΕΛΙΚΟΣ' : `Ερώτηση ${data.questionNum} / ${data.totalQuestions}`;
+            document.getElementById('question-text').innerText = data.question;
+
+            data.options.forEach((opt, idx) => {
+                document.getElementById(`opt-${idx}`).innerText = opt;
+            });
+        });
+
+        socket.on('timer-tick', (timeLeft) => {
+            const timerEl = document.getElementById('timer-display');
+            timerEl.style.display = 'block';
+            timerEl.innerText = `⏱️ Χρόνος: ${timeLeft}s`;
+        });
+
+        socket.on('update-final-timer', (players) => {
+            isFinalRoundMode = true;
+            renderScores('scores-list', players, true);
+        });
+
+        socket.on('round-ended', (data) => {
+            document.getElementById('quiz-screen').style.display = 'none';
+            document.getElementById('round-end-screen').style.display = 'block';
+
+            document.getElementById('quote-display').innerText = `💬 "${data.quote}"`;
+
+            const listEl = document.getElementById('round-scores-list');
+            listEl.innerHTML = data.standings.map((p) => `
+                <div class="player-row">
+                    <div>
+                        <strong>#${p.rank} ${p.name}</strong> 
+                        <span style="color: #aaa; font-size: 16px; margin-left: 10px;">— "${p.title}"</span>
+                    </div>
+                    <span style="color: #66fcf1; font-weight: bold;">${p.score} πόντοι</span>
+                </div>
+            `).join('');
+
+            let timeLeft = data.autoStartSeconds || 15;
+            const autoTimerEl = document.getElementById('auto-timer-display');
+            autoTimerEl.innerText = `⏳ Ο επόμενος γύρος ξεκινάει σε ${timeLeft}...`;
+
+            if (countdownInterval) clearInterval(countdownInterval);
+            countdownInterval = setInterval(() => {
+                timeLeft--;
+                if (timeLeft > 0) {
+                    autoTimerEl.innerText = `⏳ Ο επόμενος γύρος ξεκινάει σε ${timeLeft}...`;
+                } else {
+                    clearInterval(countdownInterval);
+                }
+            }, 1000);
+        });
+
+        socket.on('game-over', (data) => {
+            if (countdownInterval) clearInterval(countdownInterval);
+            
+            document.getElementById('quiz-screen').style.display = 'none';
+            document.getElementById('round-end-screen').style.display = 'none';
+            document.getElementById('setup-screen').style.display = 'none';
+            document.getElementById('winner-screen').style.display = 'none';
+
+            setTimeout(() => {
+                document.getElementById('winner-title').innerText = `🏆 Μεγάλος νικητής ο/η ${data.winnerName}! 🏆`;
+                document.getElementById('winner-quote').innerText = `🎉 ${data.quote}`;
+                document.getElementById('winner-screen').style.display = 'flex';
+
+                startInfiniteFireworks();
+
+            }, 2000);
+        });
+
+        function startInfiniteFireworks() {
+            if (fireworksInterval) clearInterval(fireworksInterval);
+            
+            if (typeof confetti !== 'function') return;
+
+            const defaults = { startVelocity: 35, spread: 360, ticks: 80, zIndex: 999999 };
+
+            fireworksInterval = setInterval(function() {
+                confetti(Object.assign({}, defaults, { particleCount: 50, origin: { x: randomInRange(0.1, 0.4), y: Math.random() - 0.2 } }));
+                confetti(Object.assign({}, defaults, { particleCount: 50, origin: { x: randomInRange(0.6, 0.9), y: Math.random() - 0.2 } }));
+            }, 350);
+        }
+
+        function randomInRange(min, max) {
+            return Math.random() * (max - min) + min;
+        }
+
+        function renderScores(elementId, players, showTime = false) {
+            const el = document.getElementById(elementId);
+            if (!el) return;
+
+            if (!players || players.length === 0) {
+                el.innerHTML = '<div style="color: #888; font-style: italic;">Αναμονή για παίκτες...</div>';
+                return;
+            }
+
+            const sorted = [...players].sort((a,b) => (showTime ? b.timeLeft - a.timeLeft : b.score - a.score));
+            
+            el.innerHTML = sorted.map((p, i) => `
+                <div class="player-row">
+                    <span><strong>${i+1}. ${p.name} ${p.isReady ? '✅ (READY)' : '⏳'}</strong></span>
+                    <span style="color: #66fcf1; font-weight: bold;">
+                        ${showTime ? `${p.timeLeft}s ${p.eliminated ? '❌' : ''}` : `${p.score} πόντοι`}
+                    </span>
+                </div>
+            `).join('');
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="el">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quiz Game</title>
+</head>
+<body>
+    <script>
+        function isMobile() {
+            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        }
+
+        // Παίρνουμε παραμέτρους από το URL αν υπάρχουν (π.χ. από QR code)
+        const urlParams = new URLSearchParams(window.location.search);
+        const room = urlParams.get('room');
+
+        if (isMobile() || room) {
+            window.location.href = `/player.html${room ? '?room=' + room : ''}`;
+        } else {
+            window.location.href = '/host.html';
+        }
+    </script>
+</body>
+</html>
