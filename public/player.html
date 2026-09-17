@@ -198,7 +198,21 @@
             document.getElementById('buttons-grid').style.pointerEvents = 'none';
             triggerVibration(100);
         });
-
+        
+        socket.on('show-answer', (data) => {
+          const playerButtons = document.querySelectorAll('.player-option-btn');
+          
+          playerButtons.forEach((btn, index) => {
+            if (index === data.correctIndex) {
+              btn.style.opacity = '1';
+              btn.style.backgroundColor = '#28a745'; // Πράσινο για τη σωστή
+            } else {
+              btn.style.opacity = '0.25';
+              btn.style.filter = 'grayscale(100%)'; // Μαυρίζει τις λάθος
+            }
+          });
+        });
+                
         socket.on('ready-update', (data) => {
             document.getElementById('status-msg').innerText = `🔴 Πατήστε το Buzzer για READY! (${data.readyCount}/${data.totalCount})`;
         });
