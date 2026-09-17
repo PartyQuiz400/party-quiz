@@ -20,17 +20,34 @@ try {
     console.error("❌ Σφάλμα κατά τη φόρτωση του questions.json:", err.message);
 }
 
-function getQuestionsByCategory(categoryName, amount = 3) {
+// Συνάρτηση άντλησης μοναδικών ερωτήσεων ανά κατηγορία
+function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
     const categoryQuestions = localQuestions[categoryName] || [];
-    if (categoryQuestions.length === 0) {
-        return [{
-            q: "Ποια είναι η πρωτεύουσα της Ελλάδας;",
-            options: ["Θεσσαλονίκη", "Αθήνα", "Πάτρα", "Ηράκλειο"],
-            correct: 1
-        }];
+    
+    // Φιλτράρισμα: κρατάμε μόνο όσες ΔΕΝ έχουν χρησιμοποιηθεί ακόμα στο δωμάτιο
+    const available = categoryQuestions.filter(q => !room.usedQuestions.has(q.q));
+
+    if (available.length === 0) {
+        // Αν τελειώσουν οι ερωτήσεις της κατηγορίας, παίρνουμε από οποιαδήποτε άλλη μη χρησιμοποιημένη
+        let allUnused = [];
+        Object.keys(localQuestions).forEach(cat => {
+            localQuestions[cat].forEach(q => {
+                if (!room.usedQuestions.has(q.q)) allUnused.push(q);
+            });
+        });
+
+        const shuffledAll = allUnused.sort(() => Math.random() - 0.5);
+        const selected = shuffledAll.slice(0, amount);
+        selected.forEach(q => room.usedQuestions.add(q.q));
+        return selected;
     }
-    const shuffled = [...categoryQuestions].sort(() => Math.random() - 0.5);
-    return shuffled.slice(0, amount);
+
+    const shuffled = [...available].sort(() => Math.random() - 0.5);
+    const selected = shuffled.slice(0, amount);
+    
+    // Σημειώνουμε τις ερωτήσεις ως χρησιμοποιημένες
+    selected.forEach(q => room.usedQuestions.add(q.q));
+    return selected;
 }
 
 function getRandomCategories(count = 4) {
@@ -123,7 +140,8 @@ io.on('connection', (socket) => {
             finalRoundInterval: null,
             autoNextTimeout: null,
             chooserPlayerId: null,
-            finalCorrectOrder: 0
+            finalCorrectOrder: 0,
+            usedQuestions: new Set() // Καταγραφή ερωτήσεων που έχουν ήδη εμφανιστεί
         };
         console.log(`Δημιουργήθηκε δωμάτιο: ${roomId}`);
     });
@@ -261,7 +279,9 @@ io.on('connection', (socket) => {
 
         room.currentCategoryName = category;
         room.currentQuestionIndex = 0;
-        room.loadedQuestions = getQuestionsByCategory(category, room.maxQuestionsPerRound);
+        
+        // Φόρτωση ΜΟΝΑΔΙΚΩΝ ερωτήσεων που δεν έχουν ξαναεμφανιστεί
+        room.loadedQuestions = getUniqueQuestionsByCategory(room, category, room.maxQuestionsPerRound);
 
         if (room.currentRound === 6) {
             startFinalRound(roomId);
@@ -299,7 +319,7 @@ io.on('connection', (socket) => {
                 category: room.currentCategoryName
             });
 
-            // ΓΥΡΟΣ 4: ΑΝΤΙΣΤΡΟΦΗ ΜΕΤΡΗΣΗ 2 ΔΕΥΤΕΡΟΛΕΠΤΩΝ
+            // ΓΥΡΟΣ 4: 2 ΔΕΥΤΕΡΟΛΕΠΤΑ
             if (roundMode.id === 4) {
                 let timeLeft = 2; 
                 io.to(roomId).emit('timer-tick', timeLeft);
@@ -365,25 +385,8 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        // Φόρτωση ερωτήσεων με ασφάλεια (fallback σε όλες τις κατηγορίες αν δεν υπάρχει η "Γενικές Γνώσεις")
-        let finalQuestions = localQuestions["Γενικές Γνώσεις"] || [];
-        if (finalQuestions.length === 0) {
-            const allCategories = Object.keys(localQuestions);
-            allCategories.forEach(cat => {
-                finalQuestions = finalQuestions.concat(localQuestions[cat]);
-            });
-        }
-
-        const shuffled = [...finalQuestions].sort(() => Math.random() - 0.5);
-        room.loadedQuestions = shuffled.slice(0, 30);
-
-        if (room.loadedQuestions.length === 0) {
-            room.loadedQuestions = [{
-                q: "Ποια είναι η πρωτεύουσα της Ελλάδας;",
-                options: ["Θεσσαλονίκη", "Αθήνα", "Πάτρα", "Ηράκλειο"],
-                correct: 1
-            }];
-        }
+        // Φόρτωση ΜΟΝΑΔΙΚΩΝ ερωτήσεων για τον Τελικό
+        room.loadedQuestions = getUniqueQuestionsByCategory(room, "Γενικές Γνώσεις", 30);
 
         sendFinalQuestion(roomId);
 
@@ -426,6 +429,8 @@ io.on('connection', (socket) => {
         if (!room) return;
 
         if (room.currentQuestionIndex >= room.loadedQuestions.length) {
+            // Αν τελειώσουν οι 30 ερωτήσεις του τελικού, τραβάμε κι άλλες μοναδικές
+            room.loadedQuestions = getUniqueQuestionsByCategory(room, "Γενικές Γνώσεις", 15);
             room.currentQuestionIndex = 0;
         }
 
