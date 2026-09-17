@@ -158,7 +158,23 @@
                 banner.style.display = 'none';
             }, 3200);
         });
-
+        
+        socket.on('show-answer', (data) => {
+          // data.correctIndex είναι ο δείκτης της σωστής απάντησης (0, 1, 2, 3)
+          const optionButtons = document.querySelectorAll('.option-btn'); // ή η κλάση των κουμπιών σου
+          
+          optionButtons.forEach((btn, index) => {
+            if (index === data.correctIndex) {
+              btn.classList.add('correct-answer'); // Διατηρεί το χρώμα / γίνεται πράσινο
+              btn.style.opacity = '1';
+            } else {
+              btn.classList.add('wrong-answer'); // Μαυρίζει/γκριζάρει
+              btn.style.opacity = '0.3';
+              btn.style.filter = 'grayscale(100%)';
+            }
+          });
+        });
+        
         socket.on('show-category-options-host', (data) => {
             document.getElementById('setup-screen').style.display = 'block';
             document.getElementById('qr-area').style.display = 'none';
