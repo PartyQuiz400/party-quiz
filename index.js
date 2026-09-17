@@ -20,15 +20,11 @@ try {
     console.error("❌ Σφάλμα κατά τη φόρτωση του questions.json:", err.message);
 }
 
-// Συνάρτηση άντλησης μοναδικών ερωτήσεων ανά κατηγορία
 function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
     const categoryQuestions = localQuestions[categoryName] || [];
-    
-    // Φιλτράρισμα: κρατάμε μόνο όσες ΔΕΝ έχουν χρησιμοποιηθεί ακόμα στο δωμάτιο
     const available = categoryQuestions.filter(q => !room.usedQuestions.has(q.q));
 
     if (available.length === 0) {
-        // Αν τελειώσουν οι ερωτήσεις της κατηγορίας, παίρνουμε από οποιαδήποτε άλλη μη χρησιμοποιημένη
         let allUnused = [];
         Object.keys(localQuestions).forEach(cat => {
             localQuestions[cat].forEach(q => {
@@ -45,7 +41,6 @@ function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
     const shuffled = [...available].sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, amount);
     
-    // Σημειώνουμε τις ερωτήσεις ως χρησιμοποιημένες
     selected.forEach(q => room.usedQuestions.add(q.q));
     return selected;
 }
@@ -73,12 +68,13 @@ const INTRO_QUOTES = [
     "Συγχαρητήρια στον {first}! Στον {last}, απλά... υπομονή."
 ];
 
+// Αφαίρεση του "ο/η"
 const WINNER_QUOTES = [
-    "Πρωταθλητής ο {winner}! Τους ισοπέδωσες όλους!",
-    "Ο {winner} σηκώνει την κούπα! Οι υπόλοιποι απλά χειροκροτήστε.",
-    "Μεγάλος νικητής ο {winner}! Τελικά το Google search απέδωσε καρπούς.",
+    "Πρωταθλητής: {winner}! Τους ισοπέδωσες όλους!",
+    "Μεγάλος νικητής: {winner}! Οι υπόλοιποι απλά χειροκροτήστε.",
+    "Νικητής: {winner}! Τελικά το Google search απέδωσε καρπούς.",
     "{winner}, η δόξα σου ανήκει! Όλοι οι άλλοι για κλάματα.",
-    "Ο {winner} έδειξε ποιος είναι το αφεντικό στο PartyQuiz!"
+    "{winner}, έδειξες ποιος είναι το αφεντικό στο PartyQuiz!"
 ];
 
 const RANK_SETS = [
@@ -113,7 +109,7 @@ const rooms = {};
 
 const ROUND_MODES = [
     { id: 1, name: "Γύρος 1: Γρήγορο Δάχτυλο", desc: "Όσο πιο γρήγορα απαντάτε, τόσο περισσότερους πόντους κερδίζετε!" },
-    { id: 2, name: "Γύρος 2: Μάχη Buzzer", desc: "Πατήστε πρώτοι το Κόκκινο Buzzer για να κλειδώσετε την απάντηση!" },
+    { id: 2, name: "Γύρος 2: Μάχη Buzzer", desc: "Σε αυτό το γύρο κερδίζει πόντους μόνο ο πιο γρήγορος!" },
     { id: 3, name: "Γύρος 3: Κλέψιμο Πόντων", desc: "Με σωστή απάντηση κλέβετε 20 πόντους από τον 1ο στην κατάταξη!" },
     { id: 4, name: "Γύρος 4: Αντίστροφη Μέτρηση (2s)", desc: "Έχετε μόλις 2 δευτερόλεπτα για κάθε ερώτηση!" },
     { id: 5, name: "Γύρος 5: Διπλοί Πόντοι", desc: "Όλοι οι πόντοι διπλασιάζονται σε αυτόν τον γύρο!" },
@@ -141,7 +137,7 @@ io.on('connection', (socket) => {
             autoNextTimeout: null,
             chooserPlayerId: null,
             finalCorrectOrder: 0,
-            usedQuestions: new Set() // Καταγραφή ερωτήσεων που έχουν ήδη εμφανιστεί
+            usedQuestions: new Set()
         };
         console.log(`Δημιουργήθηκε δωμάτιο: ${roomId}`);
     });
@@ -279,8 +275,6 @@ io.on('connection', (socket) => {
 
         room.currentCategoryName = category;
         room.currentQuestionIndex = 0;
-        
-        // Φόρτωση ΜΟΝΑΔΙΚΩΝ ερωτήσεων που δεν έχουν ξαναεμφανιστεί
         room.loadedQuestions = getUniqueQuestionsByCategory(room, category, room.maxQuestionsPerRound);
 
         if (room.currentRound === 6) {
@@ -319,7 +313,6 @@ io.on('connection', (socket) => {
                 category: room.currentCategoryName
             });
 
-            // ΓΥΡΟΣ 4: 2 ΔΕΥΤΕΡΟΛΕΠΤΑ
             if (roundMode.id === 4) {
                 let timeLeft = 2; 
                 io.to(roomId).emit('timer-tick', timeLeft);
@@ -385,7 +378,6 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        // Φόρτωση ΜΟΝΑΔΙΚΩΝ ερωτήσεων για τον Τελικό
         room.loadedQuestions = getUniqueQuestionsByCategory(room, "Γενικές Γνώσεις", 30);
 
         sendFinalQuestion(roomId);
@@ -415,6 +407,7 @@ io.on('connection', (socket) => {
                 const winner = activePlayers[0] || Object.values(room.players).sort((a,b) => b.timeLeft - a.timeLeft)[0];
                 const winnerQuote = getWinnerQuote(winner ? winner.name : "Κανένας");
 
+                // Εκπομπή σε ΌΛΟΥΣ (και στα κινητά)
                 io.to(roomId).emit('game-over', {
                     players: Object.values(room.players),
                     winnerName: winner ? winner.name : "Κανένας",
@@ -429,7 +422,6 @@ io.on('connection', (socket) => {
         if (!room) return;
 
         if (room.currentQuestionIndex >= room.loadedQuestions.length) {
-            // Αν τελειώσουν οι 30 ερωτήσεις του τελικού, τραβάμε κι άλλες μοναδικές
             room.loadedQuestions = getUniqueQuestionsByCategory(room, "Γενικές Γνώσεις", 15);
             room.currentQuestionIndex = 0;
         }
