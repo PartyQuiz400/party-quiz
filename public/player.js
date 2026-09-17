@@ -1,49 +1,60 @@
 const socket = io();
 
-// Παράμετροι από το URL (π.χ. player.html?room=1234&name=Nikos)
+// Παράμετροι από το URL (QR code scan)
 const urlParams = new URLSearchParams(window.location.search);
-const roomId = urlParams.get('room');
-const playerName = urlParams.get('name');
+const roomIdFromUrl = urlParams.get('room');
 
-// Σύνδεση στο δωμάτιο
-if (roomId) {
+// Αν υπάρχει room στο URL, το συμπληρώνουμε αυτόματα στο input
+if (roomIdFromUrl) {
+    const roomInput = document.getElementById('input-room');
+    if (roomInput) roomInput.value = roomIdFromUrl;
+}
+
+// Χειροκίνητη Σύνδεση με κουμπί
+function joinGame() {
+    const roomId = document.getElementById('input-room').value.trim();
+    const playerName = document.getElementById('input-name').value.trim();
+
+    if (!roomId || !playerName) {
+        alert("Παρακαλώ συμπληρώστε Κωδικό Δωματίου και Όνομα!");
+        return;
+    }
+
     socket.emit('join-room', { roomId, playerName });
 }
 
-// 1. Επιτυχής Σύνδεση
+// 1. Επιτυχής Σύνδεση -> Μετάβαση στην Αναμονή
 socket.on('joined-successfully', (data) => {
-    console.log(`Συνδέθηκες στο δωμάτιο: ${data.roomId} ως ${data.playerName}`);
-});
-
-// 2. Ενημέρωση Ready / Buzzer αναμονής
-socket.on('ready-update', (data) => {
-    const readyStatus = document.getElementById('ready-status');
-    if (readyStatus) {
-        readyStatus.innerText = `Έτοιμοι παίκτες: ${data.readyCount} / ${data.totalCount}`;
-    }
-});
-
-// 3. Έναρξη παιχνιδιού
-socket.on('game-started-signal', () => {
     hideAllScreens();
     showScreen('waiting-screen');
+    setText('player-welcome', `Καλωσήρθες ${data.playerName}!`);
 });
 
-// 4. Εισαγωγή Γύρου
-socket.on('show-round-intro', (data) => {
-    hideAllScreens();
-    showScreen('round-intro-screen');
-    setText('round-title', data.modeName);
-    setText('round-desc', data.desc);
+// 2. Πατώντας Ready στο Lobby
+function sendReady() {
+    const roomId = document.getElementById('input-room').value.trim();
+    socket.emit('player-ready', { roomId });
+    const btn = document.getElementById('ready-buzzer-btn');
+    if (btn) {
+        btn.disabled = true;
+        btn.style.opacity = "0.5";
+        btn.innerText = "READY!";
+    }
+}
+
+// 3. Ενημέρωση Ready
+socket.on('ready-update', (data) => {
+    setText('ready-status', `Έτοιμοι παίκτες: ${data.readyCount} / ${data.totalCount}`);
 });
 
-// 5. Επιλογή Κατηγορίας
+// 4. Επιλογή Κατηγορίας
 socket.on('prompt-category-selection', (data) => {
     hideAllScreens();
     showScreen('category-screen');
 
     const container = document.getElementById('categories-container');
     const title = document.getElementById('category-title');
+    const roomId = document.getElementById('input-room').value.trim();
 
     if (data.isChooser) {
         if (title) title.innerText = "Διάλεξε κατηγορία:";
@@ -51,7 +62,8 @@ socket.on('prompt-category-selection', (data) => {
             container.innerHTML = '';
             data.categories.forEach(cat => {
                 const btn = document.createElement('button');
-                btn.className = 'btn-category';
+                btn.className = 'btn-option';
+                btn.style.background = '#007bb5';
                 btn.innerText = cat;
                 btn.onclick = () => {
                     socket.emit('select-category', { roomId, category: cat });
@@ -61,37 +73,38 @@ socket.on('prompt-category-selection', (data) => {
         }
     } else {
         if (title) title.innerText = `Ο παίκτης ${data.chooserName} επιλέγει κατηγορία...`;
-        if (container) container.innerHTML = '<p class="loader">Περιμένετε...</p>';
+        if (container) container.innerHTML = '<p>Περιμένετε...</p>';
     }
 });
 
-// 6. Νέα Ερώτηση
+// 5. Νέα Ερώτηση
 socket.on('new-question', (data) => {
     hideAllScreens();
     showScreen('question-screen');
+    setText('answer-status', '');
 
-    setText('question-text', data.question);
-    
-    // Εμφάνιση / Απόκρυψη Buzzer αν είναι ο 2ος γύρος
     const buzzerBtn = document.getElementById('buzzer-btn');
     const optionsContainer = document.getElementById('options-container');
 
     if (data.round === 2) {
-        if (buzzerBtn) buzzerBtn.style.display = 'block';
+        if (buzzerBtn) {
+            buzzerBtn.style.display = 'block';
+            buzzerBtn.disabled = false;
+        }
         if (optionsContainer) optionsContainer.style.display = 'none';
     } else {
         if (buzzerBtn) buzzerBtn.style.display = 'none';
         if (optionsContainer) optionsContainer.style.display = 'grid';
     }
 
-    // Δημιουργία Κουμπιών Απαντήσεων
     if (optionsContainer) {
         optionsContainer.innerHTML = '';
+        const roomId = document.getElementById('input-room').value.trim();
         data.options.forEach((opt, index) => {
             const btn = document.createElement('button');
             btn.className = 'btn-option';
+            btn.style.background = '#1f2833';
             btn.innerText = opt;
-            btn.disabled = false;
             btn.onclick = () => {
                 disableAllOptions();
                 socket.emit('submit-answer', { roomId, answerIndex: index });
@@ -101,8 +114,9 @@ socket.on('new-question', (data) => {
     }
 });
 
-// 7. Πάτημα Buzzer στον 2ο γύρο
+// 6. Buzzer
 function pressBuzzer() {
+    const roomId = document.getElementById('input-room').value.trim();
     socket.emit('press-buzzer', { roomId });
 }
 
@@ -118,54 +132,24 @@ socket.on('player-buzzed', (data) => {
     }
 });
 
-// 8. Χρονόμετρο (π.χ. Γύρος 4 - 2s)
+// 7. Timer & Game State
 socket.on('timer-tick', (timeLeft) => {
     setText('timer-display', `${timeLeft}s`);
 });
 
-// 9. Αποτέλεσμα Απάντησης
 socket.on('answer-recorded', (data) => {
-    const statusText = document.getElementById('answer-status');
-    if (statusText) {
-        statusText.innerText = data.isCorrect ? "✅ Σωστό!" : "❌ Λάθος!";
-    }
+    setText('answer-status', data.isCorrect ? "✅ Σωστό!" : "❌ Λάθος!");
 });
 
-// 10. Εμφάνιση Σωστής Απάντησης
-socket.on('show-answer', (data) => {
-    const optionsContainer = document.getElementById('options-container');
-    if (optionsContainer) {
-        const buttons = optionsContainer.getElementsByClassName('btn-option');
-        if (buttons[data.correctIndex]) {
-            buttons[data.correctIndex].classList.add('correct-answer');
-        }
-    }
-});
-
-// 11. Τέλος Γύρου / Κατάταξη
 socket.on('round-ended', (data) => {
     hideAllScreens();
     showScreen('round-end-screen');
     setText('round-quote', data.quote);
 });
 
-// 12. Χρονόμετρο Τελικού (Round 6)
-socket.on('update-final-timer', (players) => {
-    const me = players.find(p => p.id === socket.id);
-    if (me) {
-        setText('final-timer-display', `Χρόνος: ${me.timeLeft}s`);
-        if (me.eliminated) {
-            setText('answer-status', "☠️ Αποκλείστηκες!");
-            disableAllOptions();
-        }
-    }
-});
-
-// 13. GAME OVER (Εμφάνιση Νικητή στο Κινητό)
 socket.on('game-over', (data) => {
     hideAllScreens();
     showScreen('game-over-screen');
-
     setText('winner-name', data.winnerName);
     setText('winner-quote', data.quote);
 });
@@ -173,12 +157,18 @@ socket.on('game-over', (data) => {
 // Βοηθητικές Συναρτήσεις UI
 function hideAllScreens() {
     const screens = document.querySelectorAll('.screen');
-    screens.forEach(s => s.style.display = 'none');
+    screens.forEach(s => {
+        s.classList.remove('active');
+        s.style.display = 'none';
+    });
 }
 
 function showScreen(id) {
     const screen = document.getElementById(id);
-    if (screen) screen.style.display = 'block';
+    if (screen) {
+        screen.classList.add('active');
+        screen.style.display = 'block';
+    }
 }
 
 function setText(id, text) {
