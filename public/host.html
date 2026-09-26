@@ -30,7 +30,7 @@
         .cat-2 { background: #28a745; border-bottom: 8px solid #145523; }
         .cat-3 { background: #8e44ad; border-bottom: 8px solid #4a235a; }
 
-        .grid-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; }
+        .grid-options { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-top: 20px; opacity: 1; transition: opacity 0.5s ease; }
         .opt-box { padding: 22px; font-size: 22px; border-radius: 15px; color: white; font-weight: bold; text-align: left; padding-left: 25px; text-shadow: 1px 1px 2px black; transition: all 0.4s ease; }
         .opt-0 { background: #007bb5; border-left: 10px solid #004477; }
         .opt-1 { background: #ffcc00; color: black; text-shadow: none; border-left: 10px solid #998000; }
@@ -58,9 +58,22 @@
             box-shadow: 0 0 25px rgba(40, 167, 69, 1);
             border: 3px solid #28a745 !important;
         }
+
+        /* Ήχος/Ομιλία Overlay Ενεργοποίησης */
+        #audio-unlock-overlay {
+            position: fixed; top:0; left:0; width:100vw; height:100vh;
+            background: rgba(0,0,0,0.85); color: #66fcf1; z-index: 9999;
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
+    <!-- Overlay για ενεργοποίηση ήχου στον browser -->
+    <div id="audio-unlock-overlay" onclick="unlockAudio()">
+        <h1>🔊 Κάντε κλικ οπουδήποτε στην οθόνη για να ενεργοποιήσετε τον ήχο & τη φωνή!</h1>
+    </div>
+
     <div class="container">
 
         <!-- Banner Γύρου -->
@@ -106,7 +119,7 @@
 
             <h1 id="question-text" style="margin: 20px 0; font-size: 28px;"></h1>
 
-            <div class="grid-options">
+            <div class="grid-options" id="options-grid" style="visibility: hidden;">
                 <div class="opt-box opt-0" id="opt-0"></div>
                 <div class="opt-box opt-1" id="opt-1"></div>
                 <div class="opt-box opt-2" id="opt-2"></div>
@@ -152,6 +165,42 @@
         let countdownInterval = null;
         let isFinalRoundMode = false;
         let fireworksInterval = null;
+
+        function unlockAudio() {
+            document.getElementById('audio-unlock-overlay').style.display = 'none';
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel();
+            }
+        }
+
+        // Συνάρτηση Εκφώνησης & Εμφάνισης Απαντήσεων
+        function speakAndShowOptions(questionText, onFinishedReading) {
+            if ('speechSynthesis' in window) {
+                window.speechSynthesis.cancel(); // Σταματάμε τυχόν παλιά ομιλία
+
+                const utterance = new SpeechSynthesisUtterance(questionText);
+                utterance.lang = 'el-GR';
+                utterance.rate = 0.95;
+
+                // Μόλις τελειώσει την ανάγνωση
+                utterance.onend = function() {
+                    document.getElementById('options-grid').style.visibility = 'visible';
+                    if (onFinishedReading) onFinishedReading();
+                };
+
+                utterance.onerror = function() {
+                    // Σε περίπτωση σφάλματος, εμφανίζουμε τις απαντήσεις άμεσα
+                    document.getElementById('options-grid').style.visibility = 'visible';
+                    if (onFinishedReading) onFinishedReading();
+                };
+
+                window.speechSynthesis.speak(utterance);
+            } else {
+                // Αν ο browser δεν υποστηρίζει TTS
+                document.getElementById('options-grid').style.visibility = 'visible';
+                if (onFinishedReading) onFinishedReading();
+            }
+        }
 
         socket.on('ready-update', (data) => {
             document.getElementById('ready-status').innerText = `🔴 Πατήστε το Buzzer στο κινητό για να ξεκινήσουμε! (${data.readyCount}/${data.totalCount})`;
@@ -210,20 +259,15 @@
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('quiz-screen').style.display = 'block';
 
+            // Κρύβουμε τις απαντήσεις μέχρι να διαβαστεί η ερώτηση
+            document.getElementById('options-grid').style.visibility = 'hidden';
+
             [0, 1, 2, 3].forEach(idx => {
                 const el = document.getElementById(`opt-${idx}`);
                 el.classList.remove('correct-answer', 'wrong-answer');
             });
 
-            const timerEl = document.getElementById('timer-display');
-            if (isFinalRoundMode) {
-                timerEl.style.display = 'none';
-            } else if (data.round === 4) {
-                timerEl.style.display = 'block';
-            } else {
-                timerEl.style.display = 'none';
-            }
-
+            document.getElementById('timer-display').style.display = 'none';
             document.getElementById('round-info').innerText = `Γύρος ${data.round}`;
             document.getElementById('round-desc').innerText = data.roundMode.desc;
             document.getElementById('category-info').innerText = `Κατηγορία: ${data.category}`;
@@ -233,6 +277,9 @@
             data.options.forEach((opt, idx) => {
                 document.getElementById(`opt-${idx}`).innerText = opt;
             });
+
+            // Διαβάζουμε την ερώτηση και μόλις τελειώσει εμφανίζουμε τις απαντήσεις
+            speakAndShowOptions(data.question);
         });
 
         socket.on('timer-tick', (timeLeft) => {
@@ -247,6 +294,8 @@
         });
 
         socket.on('round-ended', (data) => {
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
             document.getElementById('quiz-screen').style.display = 'none';
             document.getElementById('round-end-screen').style.display = 'block';
 
@@ -279,6 +328,7 @@
         });
 
         socket.on('game-over', (data) => {
+            if ('speechSynthesis' in window) window.speechSynthesis.cancel();
             if (countdownInterval) clearInterval(countdownInterval);
             
             document.getElementById('quiz-screen').style.display = 'none';
