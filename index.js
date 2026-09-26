@@ -20,9 +20,27 @@ try {
     console.error("❌ Σφάλμα κατά τη φόρτωση του questions.json:", err.message);
 }
 
+// Φιλτράρισμα ερωτήσεων με βάση τη δυσκολία (selectedDifficulty) ή τις Δύσκολες (3-4) στον 5ο γύρο
 function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
     const categoryQuestions = localQuestions[categoryName] || [];
-    const available = categoryQuestions.filter(q => !room.usedQuestions.has(q.q));
+    
+    // Αν είμαστε στον 5ο γύρο -> Δύσκολες Ερωτήσεις (Difficulty >= 3)
+    // Αλλιώς -> Ερωτήσεις με τη δυσκολία που επέλεξε ο 1ος παίκτης
+    let targetDifficulty = room.selectedDifficulty || 1;
+    let filtered = [];
+
+    if (room.currentRound === 5) {
+        filtered = categoryQuestions.filter(q => q.difficulty >= 3);
+    } else {
+        filtered = categoryQuestions.filter(q => q.difficulty === targetDifficulty);
+    }
+
+    // Fallback σε όλες τις ερωτήσεις αν δεν υπάρχουν αρκετές στη ζητούμενη δυσκολία
+    if (filtered.length < amount) {
+        filtered = categoryQuestions;
+    }
+
+    const available = filtered.filter(q => !room.usedQuestions.has(q.q));
 
     if (available.length === 0) {
         let allUnused = [];
@@ -111,7 +129,7 @@ const ROUND_MODES = [
     { id: 2, name: "Γύρος 2: Μάχη Buzzer", desc: "Σε αυτό το γύρο κερδίζει πόντους μόνο ο πιο γρήγορος!" },
     { id: 3, name: "Γύρος 3: Κλέψιμο Πόντων", desc: "Με σωστή απάντηση κλέβετε 20 πόντους από τον 1ο στην κατάταξη!" },
     { id: 4, name: "Γύρος 4: Αντίστροφη Μέτρηση (2s)", desc: "Έχετε μόλις 2 δευτερόλεπτα για κάθε ερώτηση!" },
-    { id: 5, name: "Γύρος 5: Διπλοί Πόντοι", desc: "Όλοι οι πόντοι διπλασιάζονται σε αυτόν τον γύρο!" },
+    { id: 5, name: "Γύρος 5: Δύσκολες Ερωτήσεις / Διπλασιασμός (x2)", desc: "Μόνο δύσκολες ερωτήσεις! Όλοι οι πόντοι διπλασιάζονται (x2)!" },
     { id: 6, name: "Γύρος 6 (ΤΕΛΙΚΟΣ): Time Attack", desc: "Σωστό = +5s, Λάθος = -10s! Στους 2 παίκτες, ο πιο γρήγορος κλέβει +5s!" }
 ];
 
@@ -123,6 +141,7 @@ io.on('connection', (socket) => {
             hostId: socket.id,
             players: {},
             gameStarted: false,
+            selectedDifficulty: 1, // Default δυσκολία
             currentCategoryName: null,
             loadedQuestions: [],
             currentQuestionIndex: 0,
@@ -149,6 +168,10 @@ io.on('connection', (socket) => {
         if (currentPlayersCount >= MAX_PLAYERS) return;
 
         socket.join(roomId);
+        
+        // Ο 1ος παίκτης που μπαίνει ορίζεται ως Host / Επιλογέας Δυσκολίας
+        const isFirstPlayer = currentPlayersCount === 0;
+
         room.players[socket.id] = {
             id: socket.id,
             name: playerName || `Παίκτης ${currentPlayersCount + 1}`,
@@ -157,15 +180,33 @@ io.on('connection', (socket) => {
             hasAnswered: false,
             buzzed: false,
             isReady: false,
-            eliminated: false
+            eliminated: false,
+            isFirstPlayer: isFirstPlayer
         };
 
         const playersList = Object.values(room.players);
         const readyCount = playersList.filter(p => p.isReady).length;
 
-        socket.emit('joined-successfully', { roomId, playerName: room.players[socket.id].name });
+        socket.emit('joined-successfully', { 
+            roomId, 
+            playerName: room.players[socket.id].name,
+            isFirstPlayer
+        });
+        
         io.to(room.hostId).emit('update-players', playersList);
         io.to(roomId).emit('ready-update', { readyCount, totalCount: playersList.length });
+    });
+
+    // Event επιλογής δυσκολίας από τον 1ο παίκτη
+    socket.on('set-difficulty', ({ roomId, difficulty }) => {
+        const room = rooms[roomId];
+        if (!room || room.gameStarted) return;
+
+        const player = room.players[socket.id];
+        if (player && player.isFirstPlayer) {
+            room.selectedDifficulty = parseInt(difficulty) || 1;
+            io.to(roomId).emit('difficulty-updated', room.selectedDifficulty);
+        }
     });
 
     socket.on('press-buzzer', ({ roomId }) => {
@@ -344,15 +385,12 @@ io.on('connection', (socket) => {
         }
     }
 
-    // ΝΕΟ EVENT: Ο Host ειδοποιεί ότι η εκφώνηση ολοκληρώθηκε
     socket.on('start-question-timer', ({ roomId }) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        // 1. Ενεργοποιούμε τα κουμπιά απαντήσεων στα κινητά
         io.to(roomId).emit('enable-answers');
 
-        // 2. Έναρξη Timer ειδικά αν είμαστε στον 4ο Γύρο
         const roundMode = ROUND_MODES[room.currentRound - 1];
         if (roundMode && roundMode.id === 4) {
             if (room.timer) clearInterval(room.timer);
@@ -510,6 +548,7 @@ io.on('connection', (socket) => {
         const currentQ = room.loadedQuestions[room.currentQuestionIndex];
         const isCorrect = (answerIndex === currentQ.correct);
 
+        // Υπολογισμός Πόντων ανά Γύρο
         if (roundMode.id === 1) {
             if (isCorrect) {
                 const pointsTable = [30, 20, 10];
@@ -531,7 +570,8 @@ io.on('connection', (socket) => {
         } else if (roundMode.id === 4) {
             if (isCorrect) player.score += 20;
         } else if (roundMode.id === 5) {
-            if (isCorrect) player.score += 40;
+            // Γύρος 5: Δύσκολες Ερωτήσεις & Διπλασιασμός (x2)
+            if (isCorrect) player.score += 60; // 30 base x 2 = 60 πόντοι
         }
 
         socket.emit('answer-recorded', { isCorrect });
