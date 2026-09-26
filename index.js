@@ -24,8 +24,6 @@ try {
 function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
     const categoryQuestions = localQuestions[categoryName] || [];
     
-    // Αν είμαστε στον 5ο γύρο -> Δύσκολες Ερωτήσεις (Difficulty >= 3)
-    // Αλλιώς -> Ερωτήσεις με τη δυσκολία που επέλεξε ο 1ος παίκτης
     let targetDifficulty = room.selectedDifficulty || 1;
     let filtered = [];
 
@@ -35,7 +33,6 @@ function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
         filtered = categoryQuestions.filter(q => q.difficulty === targetDifficulty);
     }
 
-    // Fallback σε όλες τις ερωτήσεις αν δεν υπάρχουν αρκετές στη ζητούμενη δυσκολία
     if (filtered.length < amount) {
         filtered = categoryQuestions;
     }
@@ -141,7 +138,7 @@ io.on('connection', (socket) => {
             hostId: socket.id,
             players: {},
             gameStarted: false,
-            selectedDifficulty: 1, // Default δυσκολία
+            selectedDifficulty: 1,
             currentCategoryName: null,
             loadedQuestions: [],
             currentQuestionIndex: 0,
@@ -169,7 +166,6 @@ io.on('connection', (socket) => {
 
         socket.join(roomId);
         
-        // Ο 1ος παίκτης που μπαίνει ορίζεται ως Host / Επιλογέας Δυσκολίας
         const isFirstPlayer = currentPlayersCount === 0;
 
         room.players[socket.id] = {
@@ -197,7 +193,6 @@ io.on('connection', (socket) => {
         io.to(roomId).emit('ready-update', { readyCount, totalCount: playersList.length });
     });
 
-    // Event επιλογής δυσκολίας από τον 1ο παίκτη
     socket.on('set-difficulty', ({ roomId, difficulty }) => {
         const room = rooms[roomId];
         if (!room || room.gameStarted) return;
@@ -548,7 +543,6 @@ io.on('connection', (socket) => {
         const currentQ = room.loadedQuestions[room.currentQuestionIndex];
         const isCorrect = (answerIndex === currentQ.correct);
 
-        // Υπολογισμός Πόντων ανά Γύρο
         if (roundMode.id === 1) {
             if (isCorrect) {
                 const pointsTable = [30, 20, 10];
@@ -570,8 +564,7 @@ io.on('connection', (socket) => {
         } else if (roundMode.id === 4) {
             if (isCorrect) player.score += 20;
         } else if (roundMode.id === 5) {
-            // Γύρος 5: Δύσκολες Ερωτήσεις & Διπλασιασμός (x2)
-            if (isCorrect) player.score += 60; // 30 base x 2 = 60 πόντοι
+            if (isCorrect) player.score += 60;
         }
 
         socket.emit('answer-recorded', { isCorrect });
