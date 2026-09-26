@@ -173,8 +173,16 @@
             }
         }
 
-        // Συνάρτηση Εκφώνησης & Εμφάνισης Απαντήσεων
-        function speakAndShowOptions(questionText, onFinishedReading) {
+        // Συνάρτηση Εκφώνησης & Ειδοποίησης Server μόλις τελειώσει
+        function speakAndShowOptions(questionText, currentRoomId) {
+            function onFinish() {
+                // 1. Εμφανίζουμε τις επιλογές στην κεντρική οθόνη
+                document.getElementById('options-grid').style.visibility = 'visible';
+                
+                // 2. Ειδοποιούμε τον server ότι ολοκληρώθηκε η εκφώνηση
+                socket.emit('start-question-timer', { roomId: currentRoomId });
+            }
+
             if ('speechSynthesis' in window) {
                 window.speechSynthesis.cancel(); // Σταματάμε τυχόν παλιά ομιλία
 
@@ -182,23 +190,12 @@
                 utterance.lang = 'el-GR';
                 utterance.rate = 0.95;
 
-                // Μόλις τελειώσει την ανάγνωση
-                utterance.onend = function() {
-                    document.getElementById('options-grid').style.visibility = 'visible';
-                    if (onFinishedReading) onFinishedReading();
-                };
-
-                utterance.onerror = function() {
-                    // Σε περίπτωση σφάλματος, εμφανίζουμε τις απαντήσεις άμεσα
-                    document.getElementById('options-grid').style.visibility = 'visible';
-                    if (onFinishedReading) onFinishedReading();
-                };
+                utterance.onend = onFinish;
+                utterance.onerror = onFinish; // Αν τύχει σφάλμα, να προχωρήσει το παιχνίδι
 
                 window.speechSynthesis.speak(utterance);
             } else {
-                // Αν ο browser δεν υποστηρίζει TTS
-                document.getElementById('options-grid').style.visibility = 'visible';
-                if (onFinishedReading) onFinishedReading();
+                onFinish();
             }
         }
 
@@ -278,8 +275,8 @@
                 document.getElementById(`opt-${idx}`).innerText = opt;
             });
 
-            // Διαβάζουμε την ερώτηση και μόλις τελειώσει εμφανίζουμε τις απαντήσεις
-            speakAndShowOptions(data.question);
+            // Διαβάζουμε την ερώτηση και μόλις ολοκληρωθεί στέλνουμε σήμα στον server
+            speakAndShowOptions(data.question, roomId);
         });
 
         socket.on('timer-tick', (timeLeft) => {
