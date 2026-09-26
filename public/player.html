@@ -2,354 +2,71 @@
 <html lang="el">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>PartyQuiz Controller</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PartyQuiz - Παίκτης</title>
     <style>
-        * { 
-            box-sizing: border-box; 
-            touch-action: manipulation; 
-            -webkit-touch-callout: none;
-            -webkit-user-select: none;
-            user-select: none;
-        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; background: #121212; color: white; margin: 0; padding: 15px; }
+        .btn { width: 100%; padding: 18px; margin: 10px 0; font-size: 20px; border-radius: 12px; border: none; font-weight: bold; color: white; text-shadow: 1px 1px 2px black; }
         
-        html, body {
-            width: 100%;
-            height: 100%;
-            margin: 0;
-            padding: 10px;
-            overflow: hidden;
-            background: #121212;
-            font-family: Arial, sans-serif;
-            text-align: center;
-            color: white;
-            position: fixed;
-        }
-        
-        .login-box { max-width: 320px; margin: 40px auto; display: flex; flex-direction: column; gap: 15px; }
-        input, button { padding: 15px; font-size: 18px; border-radius: 10px; border: none; }
-        input { text-align: center; font-weight: bold; -webkit-user-select: auto; user-select: auto; }
-        .btn-join { background: #2ecc71; color: white; font-weight: bold; cursor: pointer; }
+        .btn-0 { background: #007bb5; border-bottom: 5px solid #004477; }
+        .btn-1 { background: #ffcc00; color: black; text-shadow: none; border-bottom: 5px solid #998000; }
+        .btn-2 { background: #28a745; border-bottom: 5px solid #145523; }
+        .btn-3 { background: #8e44ad; border-bottom: 5px solid #4a235a; }
 
-        .buzz-controller {
-            max-width: 340px;
-            height: calc(100vh - 20px);
-            margin: 0 auto;
-            background: #222;
-            border: 4px solid #444;
-            border-radius: 40px;
-            padding: 15px;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.8);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: space-between;
-        }
+        .btn-diff { background: #1f2833; border: 2px solid #66fcf1; color: #66fcf1; padding: 12px; margin: 5px; font-size: 16px; border-radius: 8px; width: 45%; }
+        .btn-diff.selected { background: #66fcf1; color: #0b0c10; font-weight: bold; }
 
-        .player-info { 
-            background: #333; 
-            width: 100%; 
-            padding: 10px; 
-            border-radius: 12px; 
-            font-weight: bold; 
-            color: #66fcf1;
-            font-size: 18px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
+        .btn:disabled { opacity: 0.6; filter: grayscale(50%); cursor: not-allowed; }
+        .selected-answer { border: 4px solid #ffffff !important; transform: scale(0.98); }
 
-        #status-msg { height: 28px; font-weight: bold; color: #ffeb3b; font-size: 16px; margin: 5px 0; }
+        #buzzer-btn { background: #e74c3c; color: white; font-size: 28px; padding: 35px; border-radius: 50%; width: 180px; height: 180px; margin: 20px auto; border: 6px solid #c0392b; box-shadow: 0 0 20px #e74c3c; cursor: pointer; }
+        #buzzer-btn:active { transform: scale(0.95); }
 
-        .red-buzzer {
-            width: 110px;
-            height: 110px;
-            background: radial-gradient(circle at 30% 30%, #ff4d4d, #b30000);
-            border: 6px solid #800000;
-            border-radius: 50%;
-            box-shadow: 0 8px 0 #500000;
-            cursor: pointer;
-            margin: 5px 0;
-            outline: none;
-        }
-        .red-buzzer:active { transform: translateY(6px); box-shadow: 0 2px 0 #500000; }
-
-        .buzz-buttons { width: 100%; display: flex; flex-direction: column; gap: 10px; flex: 1; justify-content: center; transition: opacity 0.3s ease; }
-
-        .buzz-btn {
-            width: 100%;
-            flex: 1;
-            max-height: 65px;
-            border-radius: 12px;
-            border: none;
-            cursor: pointer;
-            box-shadow: 0 5px 0 rgba(0,0,0,0.4);
-            font-size: 16px;
-            font-weight: bold;
-            color: white;
-            padding: 10px 15px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            word-break: break-word;
-            transition: all 0.3s ease;
-        }
-        .buzz-btn:active { transform: translateY(4px); box-shadow: 0 1px 0 rgba(0,0,0,0.4); }
-
-        .blue { background: linear-gradient(to bottom, #0088cc, #005588); border-bottom: 4px solid #003355; }
-        .yellow { background: linear-gradient(to bottom, #ffcc00, #cca000); border-bottom: 4px solid #886600; color: black; }
-        .green { background: linear-gradient(to bottom, #2ee656, #1e9638); border-bottom: 4px solid #115520; }
-        .purple { background: linear-gradient(to bottom, #9b59b6, #6c3483); border-bottom: 4px solid #4a235a; }
-
-        #mobile-banner {
-            position: fixed; top:0; left:0; width:100vw; height:100vh;
-            background: rgba(0,0,0,0.95); display: flex; flex-direction: column;
-            justify-content: center; align-items: center; padding: 20px; z-index: 100;
-        }
-
-        .wrong-answer {
-            opacity: 0.2 !important;
-            filter: grayscale(100%) !important;
-        }
-        
-        .correct-answer {
-            opacity: 1 !important;
-            border: 3px solid #ffffff !important;
-            box-shadow: 0 0 15px rgba(255, 255, 255, 0.9);
-            transform: scale(1.02);
-        }
-
-        #game-over-screen {
-            position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: #121212; display: flex; flex-direction: column;
-            justify-content: center; align-items: center; padding: 20px; z-index: 200;
-        }
+        .status-box { background: #1e1e1e; padding: 12px; border-radius: 10px; margin-bottom: 15px; font-size: 18px; border: 1px solid #333; }
     </style>
 </head>
 <body>
 
-    <!-- BANNERS & OVERLAYS -->
-    <div id="mobile-banner" style="display: none;">
-        <h1 id="m-banner-title" style="color: #66fcf1;"></h1>
-        <p id="m-banner-desc" style="color: #ffeb3b; font-size: 20px;"></p>
+    <div id="join-screen">
+        <h2>Σύνδεση στο PartyQuiz</h2>
+        <input type="text" id="player-name" placeholder="Το όνομά σου" style="width: 80%; padding: 12px; font-size: 18px; border-radius: 8px; border: none; margin-bottom: 15px;">
+        <button onclick="joinGame()" class="btn btn-2">Είσοδος</button>
     </div>
 
-    <!-- GAME OVER OVERLAY -->
-    <div id="game-over-screen" style="display: none;">
-        <h1 style="font-size: 50px; margin: 0;">🏆</h1>
-        <h2>Μεγάλος νικητής: <span id="winner-name" style="color: #66fcf1;"></span>!</h2>
-        <div style="border: 2px dashed #f1c40f; padding: 15px; margin-top: 15px; border-radius: 10px; max-width: 90%;">
-            <p id="winner-quote" style="font-style: italic; font-weight: bold; color: #f1c40f; font-size: 18px; margin: 0;"></p>
+    <div id="lobby-screen" style="display: none;">
+        <div class="status-box">
+            <h3 id="player-title" style="color: #66fcf1; margin: 0;"></h3>
+            <p id="score-display">Πόντοι / Χρόνος: 0</p>
         </div>
-    </div>
 
-    <!-- LOGIN SCREEN -->
-    <div id="login-screen" class="login-box">
-        <h2 style="color: #66fcf1;">PartyQuiz Controller</h2>
-        <input type="text" id="room-input" placeholder="Κωδικός Δωματίου">
-        <input type="text" id="name-input" placeholder="Το όνομά σου" maxlength="12">
-        <button class="btn-join" onclick="joinGame()">ΣΥΝΔΕΣΗ</button>
-        <p id="error-msg" style="color: #ff5252;"></p>
-    </div>
-
-    <!-- MAIN GAME SCREEN -->
-    <div id="game-screen" style="display: none;">
-        <div class="buzz-controller">
-            
-            <div class="player-info">
-                <span id="player-display">🎮 Παίκτης</span>
-                <span id="score-display" style="color: #ffeb3b;">0 Πόντοι</span>
-            </div>
-
-            <div id="status-msg">🔴 Πατήστε το Buzzer για READY!</div>
-
-            <button class="red-buzzer" onclick="vibrateAndSendBuzzer()"></button>
-
-            <div class="buzz-buttons" id="buttons-grid">
-                <button class="buzz-btn blue" id="btn-0" onclick="vibrateAndSendAnswer(0)"></button>
-                <button class="buzz-btn yellow" id="btn-1" onclick="vibrateAndSendAnswer(1)"></button>
-                <button class="buzz-btn green" id="btn-2" onclick="vibrateAndSendAnswer(2)"></button>
-                <button class="buzz-btn purple" id="btn-3" onclick="vibrateAndSendAnswer(3)"></button>
+        <div id="first-player-options" style="display: none; background: #1a1a2e; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #66fcf1;">
+            <h4 style="color: #ffeb3b; margin-top: 0;">🎯 Επιλογή Δυσκολίας (Είσαι ο Host Παίκτης)</h4>
+            <div style="display: flex; flex-wrap: wrap; justify-content: center;">
+                <button class="btn-diff selected" onclick="setDifficulty(1, this)">1 (Εύκολο)</button>
+                <button class="btn-diff" onclick="setDifficulty(2, this)">2 (Μέτριο)</button>
+                <button class="btn-diff" onclick="setDifficulty(3, this)">3 (Δύσκολο)</button>
+                <button class="btn-diff" onclick="setDifficulty(4, this)">4 (Πολύ Δύσκολο)</button>
             </div>
         </div>
+
+        <button id="buzzer-btn" onclick="pressBuzzer()">BUZZER</button>
+        <p id="lobby-status-text" style="color: #aaa;">Πατήστε το Buzzer για να δηλώσετε 'Ετοιμος!</p>
+    </div>
+
+    <div id="category-screen" style="display: none;">
+        <h3 id="category-prompt-text" style="color: #ffeb3b;"></h3>
+        <div id="category-buttons-container"></div>
+    </div>
+
+    <div id="quiz-screen" style="display: none;">
+        <div class="status-box">
+            <span id="game-score-display" style="color: #66fcf1; font-weight: bold; font-size: 20px;">0</span>
+        </div>
+        <h3 id="question-wait-text" style="color: #ffeb3b;">🎧 Ακούστε την ερώτηση...</h3>
+        <div id="answers-container"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        let currentRoomId = '';
-        let myName = '';
-        let isChoosingCategory = false;
-
-        const urlParams = new URLSearchParams(window.location.search);
-        const roomFromUrl = urlParams.get('room');
-        if (roomFromUrl) {
-            document.getElementById('room-input').value = roomFromUrl;
-        }
-
-        document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
-
-        function triggerVibration(pattern = 60) {
-            if ("vibrate" in navigator) navigator.vibrate(pattern);
-        }
-
-        function joinGame() {
-            const roomId = document.getElementById('room-input').value.trim();
-            const playerName = document.getElementById('name-input').value.trim();
-
-            if (!roomId || !playerName) {
-                document.getElementById('error-msg').innerText = 'Συμπληρώστε όλα τα πεδία!';
-                return;
-            }
-
-            currentRoomId = roomId;
-            myName = playerName;
-            socket.emit('join-room', { roomId, playerName });
-        }
-
-        function vibrateAndSendBuzzer() {
-            triggerVibration(80);
-            socket.emit('press-buzzer', { roomId: currentRoomId });
-        }
-
-        function vibrateAndSendAnswer(index) {
-            triggerVibration(50);
-            if (isChoosingCategory) {
-                const catName = document.getElementById(`btn-${index}`).innerText;
-                socket.emit('select-category', { roomId: currentRoomId, category: catName });
-                isChoosingCategory = false;
-                document.getElementById('status-msg').innerText = 'Κατηγορία καταχωρήθηκε! 🎯';
-            } else {
-                socket.emit('submit-answer', { roomId: currentRoomId, answerIndex: index });
-                document.getElementById('status-msg').innerText = 'Απάντηση καταχωρήθηκε! ⏳';
-            }
-            document.getElementById('buttons-grid').style.pointerEvents = 'none';
-        }
-
-        socket.on('joined-successfully', (data) => {
-            document.getElementById('login-screen').style.display = 'none';
-            document.getElementById('game-screen').style.display = 'block';
-            document.getElementById('player-display').innerText = `🎮 ${data.playerName}`;
-            document.getElementById('buttons-grid').style.pointerEvents = 'none';
-            triggerVibration(100);
-        });
-
-        socket.on('show-answer', (data) => {
-            [0, 1, 2, 3].forEach((idx) => {
-                const btn = document.getElementById(`btn-${idx}`);
-                if (idx === data.correctIndex) {
-                    btn.classList.add('correct-answer');
-                    btn.classList.remove('wrong-answer');
-                } else {
-                    btn.classList.add('wrong-answer');
-                    btn.classList.remove('correct-answer');
-                }
-            });
-        });
-
-        socket.on('ready-update', (data) => {
-            document.getElementById('status-msg').innerText = `🔴 Πατήστε το Buzzer για READY! (${data.readyCount}/${data.totalCount})`;
-        });
-
-        socket.on('game-started-signal', () => {
-            document.getElementById('status-msg').innerText = 'Το παιχνίδι ξεκινάει!';
-        });
-
-        socket.on('show-round-intro', (data) => {
-            const banner = document.getElementById('mobile-banner');
-            document.getElementById('m-banner-title').innerText = data.modeName;
-            document.getElementById('m-banner-desc').innerText = data.desc;
-            banner.style.display = 'flex';
-
-            setTimeout(() => { banner.style.display = 'none'; }, 3200);
-        });
-
-        socket.on('prompt-category-selection', (data) => {
-            if (data.isChooser) {
-                isChoosingCategory = true;
-                document.getElementById('status-msg').innerText = '🎯 ΔΙΑΛΕΞΤΕ ΚΑΤΗΓΟΡΙΑ!';
-                document.getElementById('buttons-grid').style.pointerEvents = 'auto';
-                document.getElementById('buttons-grid').style.opacity = '1';
-
-                data.categories.forEach((cat, idx) => {
-                    const btn = document.getElementById(`btn-${idx}`);
-                    btn.innerText = cat;
-                    btn.classList.remove('correct-answer', 'wrong-answer');
-                });
-            } else {
-                isChoosingCategory = false;
-                document.getElementById('status-msg').innerText = `Ο/Η ${data.chooserName} επιλέγει...`;
-                document.getElementById('buttons-grid').style.pointerEvents = 'none';
-                document.getElementById('buttons-grid').style.opacity = '0.5';
-                [0,1,2,3].forEach(idx => {
-                    const btn = document.getElementById(`btn-${idx}`);
-                    btn.innerText = '';
-                    btn.classList.remove('correct-answer', 'wrong-answer');
-                });
-            }
-        });
-
-        // Όταν φτάνει η ερώτηση, κλειδώνουμε τα κουμπιά μέχρι να ολοκληρωθεί η εκφώνηση στον Host
-        socket.on('new-question', (data) => {
-            isChoosingCategory = false;
-            document.getElementById('status-msg').innerText = '🔊 Ακούστε την ερώτηση...';
-            
-            // Κλείδωμα κουμπιών
-            document.getElementById('buttons-grid').style.pointerEvents = 'none';
-            document.getElementById('buttons-grid').style.opacity = '0.4';
-
-            data.options.forEach((opt, idx) => {
-                const btn = document.getElementById(`btn-${idx}`);
-                btn.innerText = opt;
-                btn.classList.remove('correct-answer', 'wrong-answer');
-            });
-        });
-
-        // Μόλις ο Host τελειώσει την ανάγνωση
-        socket.on('enable-answers', () => {
-            document.getElementById('status-msg').innerText = '⚡ Απαντήστε τώρα!';
-            
-            // Ξεκλείδωμα κουμπιών
-            document.getElementById('buttons-grid').style.pointerEvents = 'auto';
-            document.getElementById('buttons-grid').style.opacity = '1';
-            
-            triggerVibration(40);
-        });
-
-        socket.on('answer-recorded', (data) => {
-            document.getElementById('status-msg').innerText = data.isCorrect ? 'Σωστό! 🎉' : 'Λάθος! ❌';
-            triggerVibration(data.isCorrect ? [100, 50, 100] : [200]);
-        });
-
-        socket.on('update-single-player-score', (data) => {
-            const scoreEl = document.getElementById('score-display');
-            if (scoreEl) {
-                if (data.timeLeft !== undefined && data.timeLeft !== null && data.timeLeft > 0) {
-                    scoreEl.innerText = `⏳ ${data.timeLeft}s`;
-                } else {
-                    scoreEl.innerText = `${data.score} Πόντοι`;
-                }
-            }
-        });
-
-        socket.on('round-ended', () => {
-            document.getElementById('status-msg').innerText = 'Τέλος Γύρου!';
-            document.getElementById('buttons-grid').style.pointerEvents = 'none';
-            document.getElementById('buttons-grid').style.opacity = '0.5';
-        });
-
-        socket.on('update-final-timer', (players) => {
-            const me = players.find(p => p.name === myName);
-            if (me) {
-                document.getElementById('score-display').innerText = `⏳ ${me.timeLeft}s`;
-            }
-        });
-
-        socket.on('game-over', (data) => {
-            document.getElementById('winner-name').innerText = data.winnerName;
-            document.getElementById('winner-quote').innerText = data.quote;
-            document.getElementById('game-over-screen').style.display = 'flex';
-        });
-    </script>
+    <script src="player.js"></script>
 </body>
 </html>
