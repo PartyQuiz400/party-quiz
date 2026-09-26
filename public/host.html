@@ -90,6 +90,7 @@
                 <div id="qr-code"></div>
                 <h3>Κωδικός Δωματίου: <span id="room-code" style="color: #66fcf1;">----</span></h3>
                 <h2 style="color: #ffeb3b; margin-top: 15px;" id="ready-status">🔴 Πατήστε το Buzzer στο κινητό για να ξεκινήσουμε! (0/0)</h2>
+                <h3 style="color: #66fcf1; margin-top: 10px;" id="difficulty-status">🎯 Βαθμός Δυσκολίας: 1 (Εύκολο)</h3>
             </div>
 
             <h2>Συνδεδεμένοι Παίκτες:</h2>
@@ -199,6 +200,12 @@
             }
         }
 
+        socket.on('difficulty-updated', (level) => {
+            const diffLabels = { 1: '1 (Εύκολο)', 2: '2 (Μέτριο)', 3: '3 (Δύσκολο)', 4: '4 (Πολύ Δύσκολο)' };
+            const label = diffLabels[level] || level;
+            document.getElementById('difficulty-status').innerText = `🎯 Βαθμός Δυσκολίας: ${label}`;
+        });
+        
         socket.on('ready-update', (data) => {
             document.getElementById('ready-status').innerText = `🔴 Πατήστε το Buzzer στο κινητό για να ξεκινήσουμε! (${data.readyCount}/${data.totalCount})`;
         });
