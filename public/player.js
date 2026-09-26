@@ -1,182 +1,132 @@
 const socket = io();
 
-// Παράμετροι από το URL (QR code scan)
 const urlParams = new URLSearchParams(window.location.search);
-const roomIdFromUrl = urlParams.get('room');
+let roomId = urlParams.get('room');
 
-// Αν υπάρχει room στο URL, το συμπληρώνουμε αυτόματα στο input
-if (roomIdFromUrl) {
-    const roomInput = document.getElementById('input-room');
-    if (roomInput) roomInput.value = roomIdFromUrl;
-}
+let myPlayerName = '';
+let isFirstPlayer = false;
+let answersDisabled = true;
 
-// Χειροκίνητη Σύνδεση με κουμπί
 function joinGame() {
-    const roomId = document.getElementById('input-room').value.trim();
-    const playerName = document.getElementById('input-name').value.trim();
+    const nameInput = document.getElementById('player-name').value.trim();
+    if (!nameInput) return alert('Παρακαλώ εισάγετε όνομα!');
 
-    if (!roomId || !playerName) {
-        alert("Παρακαλώ συμπληρώστε Κωδικό Δωματίου και Όνομα!");
-        return;
+    if (!roomId) {
+        roomId = prompt('Εισάγετε τον 4-ψήφιο κωδικό δωματίου:');
     }
 
-    socket.emit('join-room', { roomId, playerName });
+    if (!roomId) return;
+
+    myPlayerName = nameInput;
+    socket.emit('join-room', { roomId, playerName: myPlayerName });
 }
 
-// 1. Επιτυχής Σύνδεση -> Μετάβαση στην Αναμονή
 socket.on('joined-successfully', (data) => {
-    hideAllScreens();
-    showScreen('waiting-screen');
-    setText('player-welcome', `Καλωσήρθες ${data.playerName}!`);
+    document.getElementById('join-screen').style.display = 'none';
+    document.getElementById('lobby-screen').style.display = 'block';
+
+    document.getElementById('player-title').innerText = data.playerName;
+    isFirstPlayer = data.isFirstPlayer;
+
+    if (isFirstPlayer) {
+        document.getElementById('first-player-options').style.display = 'block';
+    }
 });
 
-// 2. Πατώντας Ready στο Lobby
-function sendReady() {
-    const roomId = document.getElementById('input-room').value.trim();
-    socket.emit('player-ready', { roomId });
-    const btn = document.getElementById('ready-buzzer-btn');
-    if (btn) {
-        btn.disabled = true;
-        btn.style.opacity = "0.5";
-        btn.innerText = "READY!";
-    }
+function setDifficulty(level, btnElement) {
+    document.querySelectorAll('.btn-diff').forEach(b => b.classList.remove('selected'));
+    btnElement.classList.add('selected');
+    socket.emit('set-difficulty', { roomId, difficulty: level });
 }
 
-// 3. Ενημέρωση Ready
-socket.on('ready-update', (data) => {
-    setText('ready-status', `Έτοιμοι παίκτες: ${data.readyCount} / ${data.totalCount}`);
-});
-
-// 4. Επιλογή Κατηγορίας
-socket.on('prompt-category-selection', (data) => {
-    hideAllScreens();
-    showScreen('category-screen');
-
-    const container = document.getElementById('categories-container');
-    const title = document.getElementById('category-title');
-    const roomId = document.getElementById('input-room').value.trim();
-
-    if (data.isChooser) {
-        if (title) title.innerText = "Διάλεξε κατηγορία:";
-        if (container) {
-            container.innerHTML = '';
-            data.categories.forEach(cat => {
-                const btn = document.createElement('button');
-                btn.className = 'btn-option';
-                btn.style.background = '#007bb5';
-                btn.innerText = cat;
-                btn.onclick = () => {
-                    socket.emit('select-category', { roomId, category: cat });
-                };
-                container.appendChild(btn);
-            });
-        }
-    } else {
-        if (title) title.innerText = `Ο παίκτης ${data.chooserName} επιλέγει κατηγορία...`;
-        if (container) container.innerHTML = '<p>Περιμένετε...</p>';
-    }
-});
-
-// 5. Νέα Ερώτηση
-socket.on('new-question', (data) => {
-    hideAllScreens();
-    showScreen('question-screen');
-    setText('answer-status', '');
-
-    const buzzerBtn = document.getElementById('buzzer-btn');
-    const optionsContainer = document.getElementById('options-container');
-
-    if (data.round === 2) {
-        if (buzzerBtn) {
-            buzzerBtn.style.display = 'block';
-            buzzerBtn.disabled = false;
-        }
-        if (optionsContainer) optionsContainer.style.display = 'none';
-    } else {
-        if (buzzerBtn) buzzerBtn.style.display = 'none';
-        if (optionsContainer) optionsContainer.style.display = 'grid';
-    }
-
-    if (optionsContainer) {
-        optionsContainer.innerHTML = '';
-        const roomId = document.getElementById('input-room').value.trim();
-        data.options.forEach((opt, index) => {
-            const btn = document.createElement('button');
-            btn.className = 'btn-option';
-            btn.style.background = '#1f2833';
-            btn.innerText = opt;
-            btn.onclick = () => {
-                disableAllOptions();
-                socket.emit('submit-answer', { roomId, answerIndex: index });
-            };
-            optionsContainer.appendChild(btn);
-        });
-    }
-});
-
-// 6. Buzzer
 function pressBuzzer() {
-    const roomId = document.getElementById('input-room').value.trim();
     socket.emit('press-buzzer', { roomId });
 }
 
-socket.on('player-buzzed', (data) => {
-    const buzzerBtn = document.getElementById('buzzer-btn');
-    const optionsContainer = document.getElementById('options-container');
+socket.on('game-started-signal', () => {
+    document.getElementById('lobby-status-text').innerText = 'Το παιχνίδι ξεκίνησε!';
+    document.getElementById('first-player-options').style.display = 'none';
+});
 
-    if (data.playerId === socket.id) {
-        if (buzzerBtn) buzzerBtn.style.display = 'none';
-        if (optionsContainer) optionsContainer.style.display = 'grid';
+socket.on('prompt-category-selection', (data) => {
+    document.getElementById('lobby-screen').style.display = 'none';
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('category-screen').style.display = 'block';
+
+    const container = document.getElementById('category-buttons-container');
+    container.innerHTML = '';
+
+    if (data.isChooser) {
+        document.getElementById('category-prompt-text').innerText = '🎯 Επιλέξτε Κατηγορία:';
+        data.categories.forEach((cat, idx) => {
+            const btn = document.createElement('button');
+            btn.className = `btn btn-${idx}`;
+            btn.innerText = cat;
+            btn.onclick = () => {
+                socket.emit('select-category', { roomId, category: cat });
+                document.getElementById('category-screen').style.display = 'none';
+            };
+            container.appendChild(btn);
+        });
     } else {
-        if (buzzerBtn) buzzerBtn.disabled = true;
+        document.getElementById('category-prompt-text').innerText = `⏳ Ο/Η "${data.chooserName}" επιλέγει κατηγορία...`;
     }
 });
 
-// 7. Timer & Game State
-socket.on('timer-tick', (timeLeft) => {
-    setText('timer-display', `${timeLeft}s`);
-});
+socket.on('new-question', (data) => {
+    document.getElementById('category-screen').style.display = 'none';
+    document.getElementById('lobby-screen').style.display = 'none';
+    document.getElementById('quiz-screen').style.display = 'block';
 
-socket.on('answer-recorded', (data) => {
-    setText('answer-status', data.isCorrect ? "✅ Σωστό!" : "❌ Λάθος!");
-});
+    document.getElementById('question-wait-text').innerText = '🎧 Ακούστε την ερώτηση στην οθόνη...';
+    answersDisabled = true;
 
-socket.on('round-ended', (data) => {
-    hideAllScreens();
-    showScreen('round-end-screen');
-    setText('round-quote', data.quote);
-});
+    const container = document.getElementById('answers-container');
+    container.innerHTML = '';
 
-socket.on('game-over', (data) => {
-    hideAllScreens();
-    showScreen('game-over-screen');
-    setText('winner-name', data.winnerName);
-    setText('winner-quote', data.quote);
-});
+    data.options.forEach((opt, idx) => {
+        const btn = document.createElement('button');
+        btn.className = `btn btn-${idx}`;
+        btn.id = `ans-btn-${idx}`;
+        btn.innerText = opt;
+        btn.disabled = true; // Αρχικά απενεργοποιημένα μέχρι να ολοκληρωθεί η εκφώνηση
 
-// Βοηθητικές Συναρτήσεις UI
-function hideAllScreens() {
-    const screens = document.querySelectorAll('.screen');
-    screens.forEach(s => {
-        s.classList.remove('active');
-        s.style.display = 'none';
+        btn.onclick = () => {
+            if (answersDisabled) return;
+            
+            // Κλειδώνουμε όλες τις απαντήσεις αλλάΔΕΝ τις κρύβουμε/εξαφανίζουμε
+            document.querySelectorAll('#answers-container .btn').forEach(b => b.disabled = true);
+            btn.classList.add('selected-answer');
+
+            socket.emit('submit-answer', { roomId, answerIndex: idx });
+        };
+
+        container.appendChild(btn);
     });
-}
+});
 
-function showScreen(id) {
-    const screen = document.getElementById(id);
-    if (screen) {
-        screen.classList.add('active');
-        screen.style.display = 'block';
-    }
-}
+socket.on('enable-answers', () => {
+    answersDisabled = false;
+    document.getElementById('question-wait-text').innerText = '⚡ Απαντήστε ΤΩΡΑ!';
+    document.querySelectorAll('#answers-container .btn').forEach(b => b.disabled = false);
+});
 
-function setText(id, text) {
-    const el = document.getElementById(id);
-    if (el) el.innerText = text;
-}
+socket.on('update-single-player-score', (data) => {
+    const text = (data.timeLeft !== undefined && data.timeLeft > 0) ? `Χρόνος: ${data.timeLeft}s` : `Πόντοι: ${data.score}`;
+    document.getElementById('score-display').innerText = text;
+    document.getElementById('game-score-display').innerText = text;
+});
 
-function disableAllOptions() {
-    const buttons = document.querySelectorAll('.btn-option');
-    buttons.forEach(btn => btn.disabled = true);
-}
+socket.on('round-ended', () => {
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('category-screen').style.display = 'none';
+    document.getElementById('lobby-screen').style.display = 'block';
+    document.getElementById('lobby-status-text').innerText = 'Αναμονή για τον επόμενο γύρο...';
+});
+
+socket.on('game-over', () => {
+    document.getElementById('quiz-screen').style.display = 'none';
+    document.getElementById('category-screen').style.display = 'none';
+    document.getElementById('lobby-screen').style.display = 'block';
+    document.getElementById('lobby-status-text').innerText = '🏆 Το παιχνίδι ολοκληρώθηκε!';
+});
