@@ -74,7 +74,7 @@
         }
         .red-buzzer:active { transform: translateY(6px); box-shadow: 0 2px 0 #500000; }
 
-        .buzz-buttons { width: 100%; display: flex; flex-direction: column; gap: 10px; flex: 1; justify-content: center; }
+        .buzz-buttons { width: 100%; display: flex; flex-direction: column; gap: 10px; flex: 1; justify-content: center; transition: opacity 0.3s ease; }
 
         .buzz-btn {
             width: 100%;
@@ -181,14 +181,12 @@
         let myName = '';
         let isChoosingCategory = false;
 
-        // Αυτόματη συμπλήρωση του Room ID από το QR code URL
         const urlParams = new URLSearchParams(window.location.search);
         const roomFromUrl = urlParams.get('room');
         if (roomFromUrl) {
             document.getElementById('room-input').value = roomFromUrl;
         }
 
-        // Αποφυγή scroll στο κινητό
         document.addEventListener('touchmove', function(e) { e.preventDefault(); }, { passive: false });
 
         function triggerVibration(pattern = 60) {
@@ -271,6 +269,7 @@
                 isChoosingCategory = true;
                 document.getElementById('status-msg').innerText = '🎯 ΔΙΑΛΕΞΤΕ ΚΑΤΗΓΟΡΙΑ!';
                 document.getElementById('buttons-grid').style.pointerEvents = 'auto';
+                document.getElementById('buttons-grid').style.opacity = '1';
 
                 data.categories.forEach((cat, idx) => {
                     const btn = document.getElementById(`btn-${idx}`);
@@ -281,6 +280,7 @@
                 isChoosingCategory = false;
                 document.getElementById('status-msg').innerText = `Ο/Η ${data.chooserName} επιλέγει...`;
                 document.getElementById('buttons-grid').style.pointerEvents = 'none';
+                document.getElementById('buttons-grid').style.opacity = '0.5';
                 [0,1,2,3].forEach(idx => {
                     const btn = document.getElementById(`btn-${idx}`);
                     btn.innerText = '';
@@ -289,16 +289,31 @@
             }
         });
 
+        // Όταν φτάνει η ερώτηση, κλειδώνουμε τα κουμπιά μέχρι να ολοκληρωθεί η εκφώνηση στον Host
         socket.on('new-question', (data) => {
             isChoosingCategory = false;
-            document.getElementById('status-msg').innerText = 'Επιλέξτε απάντηση!';
-            document.getElementById('buttons-grid').style.pointerEvents = 'auto';
+            document.getElementById('status-msg').innerText = '🔊 Ακούστε την ερώτηση...';
+            
+            // Κλείδωμα κουμπιών
+            document.getElementById('buttons-grid').style.pointerEvents = 'none';
+            document.getElementById('buttons-grid').style.opacity = '0.4';
 
             data.options.forEach((opt, idx) => {
                 const btn = document.getElementById(`btn-${idx}`);
                 btn.innerText = opt;
                 btn.classList.remove('correct-answer', 'wrong-answer');
             });
+        });
+
+        // Μόλις ο Host τελειώσει την ανάγνωση
+        socket.on('enable-answers', () => {
+            document.getElementById('status-msg').innerText = '⚡ Απαντήστε τώρα!';
+            
+            // Ξεκλείδωμα κουμπιών
+            document.getElementById('buttons-grid').style.pointerEvents = 'auto';
+            document.getElementById('buttons-grid').style.opacity = '1';
+            
+            triggerVibration(40);
         });
 
         socket.on('answer-recorded', (data) => {
@@ -320,6 +335,7 @@
         socket.on('round-ended', () => {
             document.getElementById('status-msg').innerText = 'Τέλος Γύρου!';
             document.getElementById('buttons-grid').style.pointerEvents = 'none';
+            document.getElementById('buttons-grid').style.opacity = '0.5';
         });
 
         socket.on('update-final-timer', (players) => {
