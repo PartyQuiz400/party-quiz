@@ -59,7 +59,6 @@
             border: 3px solid #28a745 !important;
         }
 
-        /* Ήχος/Ομιλία Overlay Ενεργοποίησης */
         #audio-unlock-overlay {
             position: fixed; top:0; left:0; width:100vw; height:100vh;
             background: rgba(0,0,0,0.85); color: #66fcf1; z-index: 9999;
@@ -69,20 +68,17 @@
     </style>
 </head>
 <body>
-    <!-- Overlay για ενεργοποίηση ήχου στον browser -->
     <div id="audio-unlock-overlay" onclick="unlockAudio()">
         <h1>🔊 Κάντε κλικ οπουδήποτε στην οθόνη για να ενεργοποιήσετε τον ήχο & τη φωνή!</h1>
     </div>
 
     <div class="container">
 
-        <!-- Banner Γύρου -->
         <div id="round-banner" style="display: none;">
             <h1 id="banner-title">ΓΥΡΟΣ 1</h1>
             <p id="banner-desc">Περιγραφή mode...</p>
         </div>
 
-        <!-- Setup Screen -->
         <div id="setup-screen">
             <h1 style="font-size: 42px; color: #66fcf1;">PARTYQUIZ 🎙️</h1>
             <div id="qr-area">
@@ -102,7 +98,6 @@
             </div>
         </div>
 
-        <!-- Quiz Screen -->
         <div id="quiz-screen" style="display: none;">
             <div class="top-leaderboard">
                 <h2 style="margin: 0 0 10px 0; color: #66fcf1;">📊 LIVE Κατάταξη Παικτών</h2>
@@ -128,7 +123,6 @@
             </div>
         </div>
 
-        <!-- Round End Screen -->
         <div id="round-end-screen" style="display: none;">
             <h1 style="color: #66fcf1;">🏁 Τέλος Γύρου!</h1>
             <div id="quote-display" class="quote-box"></div>
@@ -139,7 +133,6 @@
             <div id="auto-timer-display" class="auto-timer">⏳ Ο επόμενος γύρος ξεκινάει σε 15...</div>
         </div>
 
-        <!-- Winner Screen -->
         <div id="winner-screen" style="display: none;">
             <h1 id="winner-title" style="color: #ffeb3b; font-size: 60px; margin-bottom: 20px; text-shadow: 0 0 20px #ffeb3b;"></h1>
             <div id="winner-quote" class="quote-box" style="max-width: 800px; font-size: 32px; padding: 25px;"></div>
@@ -174,25 +167,57 @@
             }
         }
 
-        // Συνάρτηση Εκφώνησης & Ειδοποίησης Server μόλις τελειώσει
+        // Αυτόματη παραγωγή Victory Fanfare ήχου μέσω Web Audio API
+        function playVictoryFanfare() {
+            try {
+                const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                if (!AudioCtx) return;
+                const ctx = new AudioCtx();
+
+                const notes = [
+                    { f: 523.25, duration: 0.15, delay: 0.0 },  // C5
+                    { f: 523.25, duration: 0.15, delay: 0.15 }, // C5
+                    { f: 523.25, duration: 0.15, delay: 0.30 }, // C5
+                    { f: 659.25, duration: 0.40, delay: 0.45 }, // E5
+                    { f: 783.99, duration: 0.60, delay: 0.90 }  // G5
+                ];
+
+                notes.forEach(note => {
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+
+                    osc.type = 'triangle';
+                    osc.frequency.value = note.f;
+
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime + note.delay);
+                    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note.delay + note.duration);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(ctx.currentTime + note.delay);
+                    osc.stop(ctx.currentTime + note.delay + note.duration);
+                });
+            } catch (e) {
+                console.log("Audio fanfare error:", e);
+            }
+        }
+
         function speakAndShowOptions(questionText, currentRoomId) {
             function onFinish() {
-                // 1. Εμφανίζουμε τις επιλογές στην κεντρική οθόνη
                 document.getElementById('options-grid').style.visibility = 'visible';
-                
-                // 2. Ειδοποιούμε τον server ότι ολοκληρώθηκε η εκφώνηση
                 socket.emit('start-question-timer', { roomId: currentRoomId });
             }
 
             if ('speechSynthesis' in window) {
-                window.speechSynthesis.cancel(); // Σταματάμε τυχόν παλιά ομιλία
+                window.speechSynthesis.cancel();
 
                 const utterance = new SpeechSynthesisUtterance(questionText);
                 utterance.lang = 'el-GR';
                 utterance.rate = 0.95;
 
                 utterance.onend = onFinish;
-                utterance.onerror = onFinish; // Αν τύχει σφάλμα, να προχωρήσει το παιχνίδι
+                utterance.onerror = onFinish;
 
                 window.speechSynthesis.speak(utterance);
             } else {
@@ -200,14 +225,14 @@
             }
         }
 
+        socket.on('ready-update', (data) => {
+            document.getElementById('ready-status').innerText = `🔴 Πατήστε το Buzzer στο κινητό για να ξεκινήσουμε! (${data.readyCount}/${data.totalCount})`;
+        });
+
         socket.on('difficulty-updated', (level) => {
             const diffLabels = { 1: '1 (Εύκολο)', 2: '2 (Μέτριο)', 3: '3 (Δύσκολο)', 4: '4 (Πολύ Δύσκολο)' };
             const label = diffLabels[level] || level;
             document.getElementById('difficulty-status').innerText = `🎯 Βαθμός Δυσκολίας: ${label}`;
-        });
-        
-        socket.on('ready-update', (data) => {
-            document.getElementById('ready-status').innerText = `🔴 Πατήστε το Buzzer στο κινητό για να ξεκινήσουμε! (${data.readyCount}/${data.totalCount})`;
         });
 
         socket.on('show-round-intro', (data) => {
@@ -263,7 +288,6 @@
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('quiz-screen').style.display = 'block';
 
-            // Κρύβουμε τις απαντήσεις μέχρι να διαβαστεί η ερώτηση
             document.getElementById('options-grid').style.visibility = 'hidden';
 
             [0, 1, 2, 3].forEach(idx => {
@@ -282,7 +306,6 @@
                 document.getElementById(`opt-${idx}`).innerText = opt;
             });
 
-            // Διαβάζουμε την ερώτηση και μόλις ολοκληρωθεί στέλνουμε σήμα στον server
             speakAndShowOptions(data.question, roomId);
         });
 
@@ -345,9 +368,10 @@
                 document.getElementById('winner-quote').innerText = `🎉 ${data.quote}`;
                 document.getElementById('winner-screen').style.display = 'flex';
 
+                playVictoryFanfare();
                 startInfiniteFireworks();
 
-            }, 2000);
+            }, 1000);
         });
 
         function startInfiniteFireworks() {
