@@ -68,7 +68,6 @@ const INTRO_QUOTES = [
     "Συγχαρητήρια στον {first}! Στον {last}, απλά... υπομονή."
 ];
 
-// Αφαίρεση του "ο/η"
 const WINNER_QUOTES = [
     "Πρωταθλητής: {winner}! Τους ισοπέδωσες όλους!",
     "Μεγάλος νικητής: {winner}! Οι υπόλοιποι απλά χειροκροτήστε.",
@@ -312,19 +311,6 @@ io.on('connection', (socket) => {
                 roundMode: roundMode,
                 category: room.currentCategoryName
             });
-
-            if (roundMode.id === 4) {
-                let timeLeft = 2; 
-                io.to(roomId).emit('timer-tick', timeLeft);
-                room.timer = setInterval(() => {
-                    timeLeft--;
-                    io.to(roomId).emit('timer-tick', timeLeft);
-                    if (timeLeft <= 0) {
-                        clearInterval(room.timer);
-                        revealAnswerAndNext(roomId, q.correct);
-                    }
-                }, 1000);
-            }
         } else {
             room.currentRound++;
             
@@ -357,6 +343,36 @@ io.on('connection', (socket) => {
             }, 15000);
         }
     }
+
+    // ΝΕΟ EVENT: Ο Host ειδοποιεί ότι η εκφώνηση ολοκληρώθηκε
+    socket.on('start-question-timer', ({ roomId }) => {
+        const room = rooms[roomId];
+        if (!room) return;
+
+        // 1. Ενεργοποιούμε τα κουμπιά απαντήσεων στα κινητά
+        io.to(roomId).emit('enable-answers');
+
+        // 2. Έναρξη Timer ειδικά αν είμαστε στον 4ο Γύρο
+        const roundMode = ROUND_MODES[room.currentRound - 1];
+        if (roundMode && roundMode.id === 4) {
+            if (room.timer) clearInterval(room.timer);
+
+            let timeLeft = 2;
+            io.to(roomId).emit('timer-tick', timeLeft);
+            
+            room.timer = setInterval(() => {
+                timeLeft--;
+                io.to(roomId).emit('timer-tick', timeLeft);
+                if (timeLeft <= 0) {
+                    clearInterval(room.timer);
+                    const q = room.loadedQuestions[room.currentQuestionIndex];
+                    if (q) {
+                        revealAnswerAndNext(roomId, q.correct);
+                    }
+                }
+            }, 1000);
+        }
+    });
 
     function revealAnswerAndNext(roomId, correctIndex) {
         const room = rooms[roomId];
@@ -407,7 +423,6 @@ io.on('connection', (socket) => {
                 const winner = activePlayers[0] || Object.values(room.players).sort((a,b) => b.timeLeft - a.timeLeft)[0];
                 const winnerQuote = getWinnerQuote(winner ? winner.name : "Κανένας");
 
-                // Εκπομπή σε ΌΛΟΥΣ (και στα κινητά)
                 io.to(roomId).emit('game-over', {
                     players: Object.values(room.players),
                     winnerName: winner ? winner.name : "Κανένας",
