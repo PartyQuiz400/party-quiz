@@ -20,15 +20,24 @@ try {
     console.error("❌ Σφάλμα κατά τη φόρτωση του questions.json:", err.message);
 }
 
-// Φιλτράρισμα ερωτήσεων με βάση τη δυσκολία (selectedDifficulty) ή τις Δύσκολες (3-4) στον 5ο γύρο
+// Χάρτης αντιστοίχισης αριθμητικού επιπέδου σε String
+function mapDifficulty(diff) {
+    if (diff === 'easy' || diff === 'medium' || diff === 'hard') return diff;
+    if (diff === 1) return 'easy';
+    if (diff === 2) return 'medium';
+    if (diff === 3 || diff === 4) return 'hard';
+    return 'easy';
+}
+
+// Φιλτράρισμα ερωτήσεων με βάση τη δυσκολία (selectedDifficulty)
 function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
     const categoryQuestions = localQuestions[categoryName] || [];
     
-    let targetDifficulty = room.selectedDifficulty || 1;
+    let targetDifficulty = mapDifficulty(room.selectedDifficulty);
     let filtered = [];
 
     if (room.currentRound === 5) {
-        filtered = categoryQuestions.filter(q => q.difficulty >= 3);
+        filtered = categoryQuestions.filter(q => q.difficulty === 'hard');
     } else {
         filtered = categoryQuestions.filter(q => q.difficulty === targetDifficulty);
     }
@@ -37,33 +46,34 @@ function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
         filtered = categoryQuestions;
     }
 
-    const available = filtered.filter(q => !room.usedQuestions.has(q.q));
+    const available = filtered.filter(q => !room.usedQuestions.has(q.question || q.q));
 
     if (available.length === 0) {
         let allUnused = [];
         Object.keys(localQuestions).forEach(cat => {
             localQuestions[cat].forEach(q => {
-                if (!room.usedQuestions.has(q.q)) allUnused.push(q);
+                const qKey = q.question || q.q;
+                if (!room.usedQuestions.has(qKey)) allUnused.push(q);
             });
         });
 
         const shuffledAll = allUnused.sort(() => Math.random() - 0.5);
         const selected = shuffledAll.slice(0, amount);
-        selected.forEach(q => room.usedQuestions.add(q.q));
+        selected.forEach(q => room.usedQuestions.add(q.question || q.q));
         return selected;
     }
 
     const shuffled = [...available].sort(() => Math.random() - 0.5);
     const selected = shuffled.slice(0, amount);
     
-    selected.forEach(q => room.usedQuestions.add(q.q));
+    selected.forEach(q => room.usedQuestions.add(q.question || q.q));
     return selected;
 }
 
 function getRandomCategories(count = 4) {
     const keys = Object.keys(localQuestions);
     if (keys.length === 0) {
-        return ["Γενικές Γνώσεις", "Σινεμά & Ταινίες", "Μουσική", "Αθλητικά"];
+        return ["General", "Cinema", "Music", "Sports"];
     }
     const shuffled = keys.sort(() => 0.5 - Math.random());
     return shuffled.slice(0, count);
@@ -138,7 +148,7 @@ io.on('connection', (socket) => {
             hostId: socket.id,
             players: {},
             gameStarted: false,
-            selectedDifficulty: 1,
+            selectedDifficulty: 'easy',
             currentCategoryName: null,
             loadedQuestions: [],
             currentQuestionIndex: 0,
@@ -199,7 +209,7 @@ io.on('connection', (socket) => {
 
         const player = room.players[socket.id];
         if (player && player.isFirstPlayer) {
-            room.selectedDifficulty = parseInt(difficulty) || 1;
+            room.selectedDifficulty = mapDifficulty(difficulty);
             io.to(roomId).emit('difficulty-updated', room.selectedDifficulty);
         }
     });
@@ -319,6 +329,16 @@ io.on('connection', (socket) => {
         }
     });
 
+    function getCorrectIndex(q) {
+        if (q.correctIndex !== undefined) return q.correctIndex;
+        if (typeof q.correct === 'number') return q.correct;
+        if (typeof q.correct === 'string') {
+            const idx = q.options.indexOf(q.correct);
+            return idx !== -1 ? idx : 0;
+        }
+        return 0;
+    }
+
     function sendQuestion(roomId) {
         const room = rooms[roomId];
         if (!room) return;
@@ -339,7 +359,7 @@ io.on('connection', (socket) => {
             const roundMode = ROUND_MODES[room.currentRound - 1];
 
             io.to(roomId).emit('new-question', {
-                question: q.q,
+                question: q.question || q.q,
                 options: q.options,
                 questionNum: room.currentQuestionIndex + 1,
                 totalQuestions: room.loadedQuestions.length,
@@ -400,7 +420,7 @@ io.on('connection', (socket) => {
                     clearInterval(room.timer);
                     const q = room.loadedQuestions[room.currentQuestionIndex];
                     if (q) {
-                        revealAnswerAndNext(roomId, q.correct);
+                        revealAnswerAndNext(roomId, getCorrectIndex(q));
                     }
                 }
             }, 1000);
@@ -427,7 +447,7 @@ io.on('connection', (socket) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        room.loadedQuestions = getUniqueQuestionsByCategory(room, "Γενικές Γνώσεις", 30);
+        room.loadedQuestions = getUniqueQuestionsByCategory(room, "General", 30);
 
         sendFinalQuestion(roomId);
 
@@ -470,7 +490,7 @@ io.on('connection', (socket) => {
         if (!room) return;
 
         if (room.currentQuestionIndex >= room.loadedQuestions.length) {
-            room.loadedQuestions = getUniqueQuestionsByCategory(room, "Γενικές Γνώσεις", 15);
+            room.loadedQuestions = getUniqueQuestionsByCategory(room, "General", 15);
             room.currentQuestionIndex = 0;
         }
 
@@ -485,7 +505,7 @@ io.on('connection', (socket) => {
         });
 
         io.to(roomId).emit('new-question', {
-            question: q.q,
+            question: q.question || q.q,
             options: q.options,
             round: 6,
             roundMode: ROUND_MODES[5],
@@ -505,7 +525,8 @@ io.on('connection', (socket) => {
         player.hasAnswered = true;
 
         if (room.currentRound === 6) {
-            const isCorrect = (answerIndex === room.currentFinalQ.correct);
+            const correctIdx = getCorrectIndex(room.currentFinalQ);
+            const isCorrect = (answerIndex === correctIdx);
             const activePlayers = Object.values(room.players).filter(p => !p.eliminated);
 
             if (isCorrect) {
@@ -534,14 +555,15 @@ io.on('connection', (socket) => {
             const allAnswered = remainingActive.every(p => p.hasAnswered);
 
             if (allAnswered && remainingActive.length > 0) {
-                revealAnswerAndNext(roomId, room.currentFinalQ.correct);
+                revealAnswerAndNext(roomId, correctIdx);
             }
             return;
         }
 
         const roundMode = ROUND_MODES[room.currentRound - 1];
         const currentQ = room.loadedQuestions[room.currentQuestionIndex];
-        const isCorrect = (answerIndex === currentQ.correct);
+        const correctIdx = getCorrectIndex(currentQ);
+        const isCorrect = (answerIndex === correctIdx);
 
         if (roundMode.id === 1) {
             if (isCorrect) {
@@ -574,7 +596,7 @@ io.on('connection', (socket) => {
         const allAnswered = Object.values(room.players).every(p => p.hasAnswered);
         if (allAnswered || roundMode.id === 2) {
             if (room.timer) clearInterval(room.timer);
-            revealAnswerAndNext(roomId, currentQ.correct);
+            revealAnswerAndNext(roomId, correctIdx);
         }
     });
 
