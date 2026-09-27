@@ -13,7 +13,7 @@
         .btn-2 { background: #28a745; border-bottom: 5px solid #145523; }
         .btn-3 { background: #8e44ad; border-bottom: 5px solid #4a235a; }
 
-        .btn-diff { background: #1f2833; border: 2px solid #66fcf1; color: #66fcf1; padding: 12px; margin: 5px; font-size: 16px; border-radius: 8px; width: 45%; }
+        .btn-diff { background: #1f2833; border: 2px solid #66fcf1; color: #66fcf1; padding: 12px; margin: 5px; font-size: 16px; border-radius: 8px; width: 30%; }
         .btn-diff.selected { background: #66fcf1; color: #0b0c10; font-weight: bold; }
 
         .btn:disabled { opacity: 0.6; filter: grayscale(50%); cursor: not-allowed; }
@@ -42,15 +42,14 @@
         <div id="first-player-options" style="display: none; background: #1a1a2e; padding: 15px; border-radius: 12px; margin-bottom: 15px; border: 1px solid #66fcf1;">
             <h4 style="color: #ffeb3b; margin-top: 0;">🎯 Επιλογή Δυσκολίας (Είσαι ο Host Παίκτης)</h4>
             <div style="display: flex; flex-wrap: wrap; justify-content: center;">
-                <button class="btn-diff selected" onclick="setDifficulty(1, this)">1 (Εύκολο)</button>
-                <button class="btn-diff" onclick="setDifficulty(2, this)">2 (Μέτριο)</button>
-                <button class="btn-diff" onclick="setDifficulty(3, this)">3 (Δύσκολο)</button>
-                <button class="btn-diff" onclick="setDifficulty(4, this)">4 (Πολύ Δύσκολο)</button>
+                <button class="btn-diff selected" onclick="setDifficulty('easy', this)">Εύκολο</button>
+                <button class="btn-diff" onclick="setDifficulty('medium', this)">Μεσαίο</button>
+                <button class="btn-diff" onclick="setDifficulty('hard', this)">Δύσκολο</button>
             </div>
         </div>
 
         <button id="buzzer-btn" onclick="pressBuzzer()">BUZZER</button>
-        <p id="lobby-status-text" style="color: #aaa;">Πατήστε το Buzzer για να δηλώσετε 'Ετοιμος!</p>
+        <p id="lobby-status-text" style="color: #aaa;">Πατήστε το Buzzer για να δηλώσετε 'Έτοιμος!</p>
     </div>
 
     <div id="category-screen" style="display: none;">
