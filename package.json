@@ -1,22 +1,17 @@
 {
   "name": "partyquiz",
   "version": "1.0.0",
+  "description": "Party Quiz Game με Node.js, Express & Socket.io",
   "main": "index.js",
-  "bin": "index.js",
   "scripts": {
-    "start": "node index.js"
-  },
-  "pkg": {
-    "assets": [
-      "public/**/*",
-      "questions.json"
-    ],
-    "targets": [
-      "node18-win-x64"
-    ]
+    "start": "node index.js",
+    "dev": "nodemon index.js"
   },
   "dependencies": {
     "express": "^4.18.2",
     "socket.io": "^4.6.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.22"
   }
 }
