@@ -8,617 +8,205 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
+// Σερβίρισμα στατικών αρχείων από τον φάκελο public[cite: 11]
 app.use(express.static(path.join(__dirname, 'public')));
 
-// 1. ΦΟΡΤΩΣΗ ΕΡΩΤΗΣΕΩΝ
-let localQuestions = {};
+// Explicit Routes για την ομαλή πρόσβαση στις σελίδες[cite: 11]
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'index.html'));
+});
+
+app.get('/host.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'host.html'));
+});
+
+app.get('/player.html', (req, res) => {
+    res.sendFile(path.join(__dirname, 'public', 'player.html'));
+});
+
+// Φόρτωση Ερωτήσεων
+let rawQuestions = {};
 try {
-    const rawData = fs.readFileSync(path.join(__dirname, 'questions.json'), 'utf8');
-    localQuestions = JSON.parse(rawData);
-    console.log("✅ Οι τοπικές ερωτήσεις φορτώθηκαν με επιτυχία!");
+    const data = fs.readFileSync(path.join(__dirname, 'questions.json'), 'utf8');
+    rawQuestions = JSON.parse(data);
+    console.log("✅ Το αρχείο ερωτήσεων φορτώθηκε επιτυχώς!");
 } catch (err) {
-    console.error("❌ Σφάλμα κατά τη φόρτωση του questions.json:", err.message);
+    console.error("❌ Σφάλμα κατά τη φόρτωση του questions.json:", err);
 }
 
-// Χάρτης αντιστοίχισης αριθμητικού επιπέδου σε String
-function mapDifficulty(diff) {
-    if (diff === 'easy' || diff === 'medium' || diff === 'hard') return diff;
-    if (diff === 1) return 'easy';
-    if (diff === 2) return 'medium';
-    if (diff === 3 || diff === 4) return 'hard';
-    return 'easy';
-}
-
-// Φιλτράρισμα ερωτήσεων με βάση τη δυσκολία (selectedDifficulty)
-function getUniqueQuestionsByCategory(room, categoryName, amount = 3) {
-    const categoryQuestions = localQuestions[categoryName] || [];
-    
-    let targetDifficulty = mapDifficulty(room.selectedDifficulty);
-    let filtered = [];
-
-    if (room.currentRound === 5) {
-        filtered = categoryQuestions.filter(q => q.difficulty === 'hard');
-    } else {
-        filtered = categoryQuestions.filter(q => q.difficulty === targetDifficulty);
-    }
-
-    if (filtered.length < amount) {
-        filtered = categoryQuestions;
-    }
-
-    const available = filtered.filter(q => !room.usedQuestions.has(q.question || q.q));
-
-    if (available.length === 0) {
-        let allUnused = [];
-        Object.keys(localQuestions).forEach(cat => {
-            localQuestions[cat].forEach(q => {
-                const qKey = q.question || q.q;
-                if (!room.usedQuestions.has(qKey)) allUnused.push(q);
-            });
-        });
-
-        const shuffledAll = allUnused.sort(() => Math.random() - 0.5);
-        const selected = shuffledAll.slice(0, amount);
-        selected.forEach(q => room.usedQuestions.add(q.question || q.q));
-        return selected;
-    }
-
-    const shuffled = [...available].sort(() => Math.random() - 0.5);
-    const selected = shuffled.slice(0, amount);
-    
-    selected.forEach(q => room.usedQuestions.add(q.question || q.q));
-    return selected;
-}
-
-function getRandomCategories(count = 4) {
-    const keys = Object.keys(localQuestions);
-    if (keys.length === 0) {
-        return ["General", "Cinema", "Music", "Sports"];
-    }
-    const shuffled = keys.sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, count);
-}
-
-// 2. QUOTES & ΠΑΡΟΥΣΙΑΣΗ
-const INTRO_QUOTES = [
-    "Δεν σε βλέπω να φτάνεις στον τελικό, {last}... Εκτός αν παίζουμε με ανάποδη βαθμολογία.",
-    "Πάλι καλά που διάβασες κι εσύ στο δημοτικό, {first}! Οι υπόλοιποι μάλλον κάνατε κοπάνες.",
-    "{last}, αν το πάθος σου ήταν πόντοι, τώρα θα ήσουν... πάλι τελευταίος.",
-    "{first}, χαλάρωσε λίγο, άφησε και καμία σωστή απάντηση για τους υπόλοιπους!",
-    "Μια θερμή παράκληση στον {last}: Πατήστε και κανένα κουμπί, δεν δαγκώνει!",
-    "Ο {first} οδηγεί την κούρσα, ενώ ο {last} απλά απολαμβάνει τη διαδρομή.",
-    "{last}, μην ανησυχείς! Η συμμετοχή μετράει... (λέμε τώρα).",
-    "{first}, μήπως έχεις ανοιχτό το Google δίπλα;",
-    "Ο {last} παίζει τακτική: Αφήνει τους άλλους να κουραστούν για να χτυπήσει στο τέλος!",
-    "Συγχαρητήρια στον {first}! Στον {last}, απλά... υπομονή."
-];
-
-const WINNER_QUOTES = [
-    "Πρωταθλητής: {winner}! Τους ισοπέδωσες όλους!",
-    "Μεγάλος νικητής: {winner}! Οι υπόλοιποι απλά χειροκροτήστε.",
-    "Νικητής: {winner}! Τελικά το Google search απέδωσε καρπούς.",
-    "{winner}, η δόξα σου ανήκει! Όλοι οι άλλοι για κλάματα.",
-    "{winner}, έδειξες ποιος είναι το αφεντικό στο PartyQuiz!"
-];
-
-const RANK_SETS = [
-    ["Νικητής του πολέμου (μέχρι στιγμής)", "Μια ανάσα από την κορυφή", "Προσπαθεί να φτάσει, αλλά δεν ακουμπά", "Ακολουθεί ιδρωμένος...", "Ουραγός της αμάξης", "Συμμετέχει απλά για την ατμόσφαιρα"],
-    ["Το 'σπασικλάκι' της παρέας", "Ο πρώτος των χαμένων", "Χρυσή μετριότητα", "Χαμένος στη μετάφραση", "Εγκεφαλικά απών", "Τουλάχιστον έχει καλή προσωπικότητα"],
-    ["Πρωταθλητής με διαφορά", "Στη γωνία για την ανατροπή", "Στο ταμπλό με τα προβλήματα", "Έμεινε από βενζίνη", "Έχασε το λεωφορείο", "Ψάχνει ακόμα πού είναι το γήπεδο"]
-];
-
-function getRandomQuote(firstPlayerName, lastPlayerName) {
-    const randomQuote = INTRO_QUOTES[Math.floor(Math.random() * INTRO_QUOTES.length)];
-    return randomQuote.replace(/{first}/g, firstPlayerName).replace(/{last}/g, lastPlayerName);
-}
-
-function getWinnerQuote(winnerName) {
-    const randomQuote = WINNER_QUOTES[Math.floor(Math.random() * WINNER_QUOTES.length)];
-    return randomQuote.replace(/{winner}/g, winnerName);
-}
-
-function getFormattedStandings(players) {
-    const sorted = [...players].sort((a, b) => b.score - a.score);
-    const randomSet = RANK_SETS[Math.floor(Math.random() * RANK_SETS.length)];
-    
-    return sorted.map((player, index) => {
-        const title = randomSet[index] || randomSet[randomSet.length - 1];
-        return { rank: index + 1, name: player.name, score: player.score, title: title };
-    });
-}
-
-// 3. GAME LOGIC
-const MAX_PLAYERS = 12;
+// Διαχείριση Δωματίων (Rooms State)
 const rooms = {};
 
-const ROUND_MODES = [
-    { id: 1, name: "Γύρος 1: Γρήγορο Δάχτυλο", desc: "Όσο πιο γρήγορα απαντάτε, τόσο περισσότερους πόντους κερδίζετε!" },
-    { id: 2, name: "Γύρος 2: Μάχη Buzzer", desc: "Σε αυτό το γύρο κερδίζει πόντους μόνο ο πιο γρήγορος!" },
-    { id: 3, name: "Γύρος 3: Κλέψιμο Πόντων", desc: "Με σωστή απάντηση κλέβετε 20 πόντους από τον 1ο στην κατάταξη!" },
-    { id: 4, name: "Γύρος 4: Αντίστροφη Μέτρηση (2s)", desc: "Έχετε μόλις 2 δευτερόλεπτα για κάθε ερώτηση!" },
-    { id: 5, name: "Γύρος 5: Δύσκολες Ερωτήσεις / Διπλασιασμός (x2)", desc: "Μόνο δύσκολες ερωτήσεις! Όλοι οι πόντοι διπλασιάζονται (x2)!" },
-    { id: 6, name: "Γύρος 6 (ΤΕΛΙΚΟΣ): Time Attack", desc: "Σωστό = +5s, Λάθος = -10s! Στους 2 παίκτες, ο πιο γρήγορος κλέβει +5s!" }
-];
+function generateRoomCode() {
+    return Math.floor(1000 + Math.random() * 9000).toString();
+}
 
 io.on('connection', (socket) => {
+    console.log('🔌 Νέα σύνδεση:', socket.id);
 
-    socket.on('create-room', (roomId) => {
-        socket.join(roomId);
+    // Δημιουργία Δωματίου από Host
+    socket.on('create-room', () => {
+        const roomId = generateRoomCode();
         rooms[roomId] = {
             hostId: socket.id,
-            players: {},
-            gameStarted: false,
-            selectedDifficulty: 'easy',
-            currentCategoryName: null,
-            loadedQuestions: [],
-            currentQuestionIndex: 0,
-            questionActive: false,
-            currentRound: 1,
-            maxQuestionsPerRound: 3,
-            correctAnswersOrder: 0,
-            buzzedPlayerId: null,
-            timer: null,
-            finalRoundInterval: null,
-            autoNextTimeout: null,
-            chooserPlayerId: null,
-            finalCorrectOrder: 0,
-            usedQuestions: new Set()
+            players: [],
+            currentRound: 0,
+            questionState: null,
+            difficulty: 'easy'
         };
-        console.log(`Δημιουργήθηκε δωμάτιο: ${roomId}`);
+        socket.join(roomId);
+        socket.emit('room-created', { roomId });
+        console.log(`🏠 Δημιουργήθηκε το δωμάτιο: ${roomId}`);
     });
 
+    // Είσοδος Παίκτη
     socket.on('join-room', ({ roomId, playerName }) => {
         const room = rooms[roomId];
-        if (!room) return;
+        if (!room) {
+            socket.emit('error-msg', 'Το δωμάτιο δεν υπάρχει!');
+            return;
+        }
 
-        const currentPlayersCount = Object.keys(room.players).length;
-        if (currentPlayersCount >= MAX_PLAYERS) return;
-
-        socket.join(roomId);
-        
-        const isFirstPlayer = currentPlayersCount === 0;
-
-        room.players[socket.id] = {
+        const isFirstPlayer = room.players.length === 0;
+        const player = {
             id: socket.id,
-            name: playerName || `Παίκτης ${currentPlayersCount + 1}`,
+            name: playerName,
             score: 0,
-            timeLeft: 0,
-            hasAnswered: false,
-            buzzed: false,
-            isReady: false,
-            eliminated: false,
+            ready: false,
             isFirstPlayer: isFirstPlayer
         };
 
-        const playersList = Object.values(room.players);
-        const readyCount = playersList.filter(p => p.isReady).length;
+        room.players.push(player);
+        socket.join(roomId);
 
-        socket.emit('joined-successfully', { 
-            roomId, 
-            playerName: room.players[socket.id].name,
+        socket.emit('joined-successfully', {
+            roomId,
+            playerName,
             isFirstPlayer
         });
-        
-        io.to(room.hostId).emit('update-players', playersList);
-        io.to(roomId).emit('ready-update', { readyCount, totalCount: playersList.length });
+
+        io.to(room.hostId).emit('update-players', room.players);
+        console.log(`👤 Ο παίκτης ${playerName} μπήκε στο δωμάτιο ${roomId}`);
     });
 
+    // Ρύθμιση Δυσκολίας
     socket.on('set-difficulty', ({ roomId, difficulty }) => {
         const room = rooms[roomId];
-        if (!room || room.gameStarted) return;
-
-        const player = room.players[socket.id];
-        if (player && player.isFirstPlayer) {
-            room.selectedDifficulty = mapDifficulty(difficulty);
-            io.to(roomId).emit('difficulty-updated', room.selectedDifficulty);
+        if (room) {
+            room.difficulty = difficulty;
+            io.to(room.hostId).emit('difficulty-updated', { difficulty });
         }
     });
 
+    // Πάτημα Buzzer / Ready
     socket.on('press-buzzer', ({ roomId }) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        if (!room.gameStarted) {
-            const player = room.players[socket.id];
-            if (player) {
-                player.isReady = true;
-                const playersList = Object.values(room.players);
-                const readyCount = playersList.filter(p => p.isReady).length;
+        const player = room.players.find(p => p.id === socket.id);
+        if (player) {
+            player.ready = true;
+            io.to(room.hostId).emit('update-players', room.players);
 
-                io.to(roomId).emit('ready-update', { readyCount, totalCount: playersList.length });
-                io.to(room.hostId).emit('update-players', playersList);
-
-                if (readyCount === playersList.length && playersList.length > 0) {
-                    room.gameStarted = true;
-                    io.to(roomId).emit('game-started-signal');
-                    startRoundFlow(roomId);
-                }
-            }
-            return;
-        }
-
-        if (room.questionActive) {
-            const roundMode = ROUND_MODES[room.currentRound - 1];
-            if (roundMode.id === 2 && !room.buzzedPlayerId) {
-                room.buzzedPlayerId = socket.id;
-                room.players[socket.id].buzzed = true;
-
-                io.to(roomId).emit('player-buzzed', {
-                    playerId: socket.id,
-                    playerName: room.players[socket.id].name
+            // Αν όλοι είναι έτοιμοι, ο Host μπορεί να ξεκινήσει επιλογή κατηγορίας
+            const allReady = room.players.every(p => p.ready);
+            if (allReady && room.players.length > 0) {
+                const chooser = room.players[Math.floor(Math.random() * room.players.length)];
+                const categories = Object.keys(rawQuestions[room.difficulty] || rawQuestions['easy'] || {});
+                
+                room.players.forEach(p => {
+                    io.to(p.id).emit('prompt-category-selection', {
+                        isChooser: p.id === chooser.id,
+                        chooserName: chooser.name,
+                        categories: categories
+                    });
                 });
             }
         }
     });
 
-    function startRoundFlow(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-
-        if (room.autoNextTimeout) clearTimeout(room.autoNextTimeout);
-
-        const roundMode = ROUND_MODES[room.currentRound - 1];
-
-        io.to(roomId).emit('show-round-intro', {
-            round: room.currentRound,
-            modeName: roundMode.name,
-            desc: roundMode.desc
-        });
-
-        setTimeout(() => {
-            prepareCategorySelection(roomId);
-        }, 3500);
-    }
-
-    function prepareCategorySelection(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-
-        const round = room.currentRound;
-        const playerList = Object.values(room.players);
-        if (playerList.length === 0) return;
-
-        let chooser = null;
-
-        if (round === 1 || round === 4) {
-            chooser = playerList[Math.floor(Math.random() * playerList.length)];
-        } else if (round === 2 || round === 5) {
-            const sorted = [...playerList].sort((a, b) => a.score - b.score);
-            chooser = sorted[0];
-        } else if (round === 3) {
-            const sorted = [...playerList].sort((a, b) => b.score - a.score);
-            chooser = sorted[0];
-        } else if (round === 6) {
-            room.currentCategoryName = "ΤΕΛΙΚΟΣ (Time Attack)";
-            room.currentQuestionIndex = 0;
-            startFinalRound(roomId);
-            return;
-        }
-
-        room.chooserPlayerId = chooser ? chooser.id : null;
-        const categories = getRandomCategories(4);
-
-        io.to(room.hostId).emit('show-category-options-host', {
-            categories,
-            chooserName: chooser ? chooser.name : '',
-            round: round
-        });
-
-        Object.values(room.players).forEach(p => {
-            const isChooser = (p.id === room.chooserPlayerId);
-            io.to(p.id).emit('prompt-category-selection', {
-                isChooser,
-                chooserName: chooser ? chooser.name : '',
-                categories: isChooser ? categories : []
-            });
-        });
-    }
-
+    // Επιλογή Κατηγορίας
     socket.on('select-category', ({ roomId, category }) => {
         const room = rooms[roomId];
         if (!room) return;
 
-        room.currentCategoryName = category;
-        room.currentQuestionIndex = 0;
-        room.loadedQuestions = getUniqueQuestionsByCategory(room, category, room.maxQuestionsPerRound);
+        room.currentRound++;
+        const categoryQuestions = (rawQuestions[room.difficulty] && rawQuestions[room.difficulty][category]) || [];
+        const questionObj = categoryQuestions[Math.floor(Math.random() * categoryQuestions.length)];
 
-        if (room.currentRound === 6) {
-            startFinalRound(roomId);
-        } else {
-            sendQuestion(roomId);
-        }
-    });
-
-    function getCorrectIndex(q) {
-        if (q.correctIndex !== undefined) return q.correctIndex;
-        if (typeof q.correct === 'number') return q.correct;
-        if (typeof q.correct === 'string') {
-            const idx = q.options.indexOf(q.correct);
-            return idx !== -1 ? idx : 0;
-        }
-        return 0;
-    }
-
-    function sendQuestion(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-
-        if (room.timer) clearInterval(room.timer);
-
-        if (room.currentQuestionIndex < room.loadedQuestions.length) {
-            const q = room.loadedQuestions[room.currentQuestionIndex];
-            room.questionActive = true;
-            room.correctAnswersOrder = 0;
-            room.buzzedPlayerId = null;
-
-            Object.keys(room.players).forEach(id => {
-                room.players[id].hasAnswered = false;
-                room.players[id].buzzed = false;
-            });
-
-            const roundMode = ROUND_MODES[room.currentRound - 1];
-
-            io.to(roomId).emit('new-question', {
-                question: q.question || q.q,
-                options: q.options,
-                questionNum: room.currentQuestionIndex + 1,
-                totalQuestions: room.loadedQuestions.length,
-                round: room.currentRound,
-                roundMode: roundMode,
-                category: room.currentCategoryName
-            });
-        } else {
-            room.currentRound++;
-            
-            if (room.currentRound === 6) {
-                Object.values(room.players).forEach(p => {
-                    p.timeLeft = Math.max(10, p.score);
-                });
-            }
-
-            const playersList = Object.values(room.players);
-            const sortedPlayers = [...playersList].sort((a, b) => b.score - a.score);
-            
-            const firstPlayer = sortedPlayers[0] ? sortedPlayers[0].name : "Παίκτης 1";
-            const lastPlayer = sortedPlayers[sortedPlayers.length - 1] ? sortedPlayers[sortedPlayers.length - 1].name : "Παίκτης";
-
-            const funQuote = getRandomQuote(firstPlayer, lastPlayer);
-            const standingsWithTitles = getFormattedStandings(playersList);
-
-            io.to(roomId).emit('round-ended', {
-                standings: standingsWithTitles,
-                quote: funQuote,
-                nextRound: room.currentRound,
-                nextMode: ROUND_MODES[room.currentRound - 1],
-                autoStartSeconds: 15
-            });
-
-            if (room.autoNextTimeout) clearTimeout(room.autoNextTimeout);
-            room.autoNextTimeout = setTimeout(() => {
-                startRoundFlow(roomId);
-            }, 15000);
-        }
-    }
-
-    socket.on('start-question-timer', ({ roomId }) => {
-        const room = rooms[roomId];
-        if (!room) return;
-
-        io.to(roomId).emit('enable-answers');
-
-        const roundMode = ROUND_MODES[room.currentRound - 1];
-        if (roundMode && roundMode.id === 4) {
-            if (room.timer) clearInterval(room.timer);
-
-            let timeLeft = 2;
-            io.to(roomId).emit('timer-tick', timeLeft);
-            
-            room.timer = setInterval(() => {
-                timeLeft--;
-                io.to(roomId).emit('timer-tick', timeLeft);
-                if (timeLeft <= 0) {
-                    clearInterval(room.timer);
-                    const q = room.loadedQuestions[room.currentQuestionIndex];
-                    if (q) {
-                        revealAnswerAndNext(roomId, getCorrectIndex(q));
-                    }
-                }
-            }, 1000);
-        }
-    });
-
-    function revealAnswerAndNext(roomId, correctIndex) {
-        const room = rooms[roomId];
-        if (!room) return;
-
-        room.questionActive = false;
-        io.to(roomId).emit('show-answer', { correctIndex });
-
-        setTimeout(() => {
-            if (room.currentRound === 6) {
-                sendFinalQuestion(roomId);
-            } else {
-                nextQuestionInternal(roomId);
-            }
-        }, 2200);
-    }
-
-    function startFinalRound(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-
-        room.loadedQuestions = getUniqueQuestionsByCategory(room, "General", 30);
-
-        sendFinalQuestion(roomId);
-
-        if (room.finalRoundInterval) clearInterval(room.finalRoundInterval);
-        room.finalRoundInterval = setInterval(() => {
-            let activePlayers = [];
-
-            Object.values(room.players).forEach(p => {
-                if (!p.eliminated) {
-                    p.timeLeft--;
-                    if (p.timeLeft <= 0) {
-                        p.timeLeft = 0;
-                        p.eliminated = true;
-                    } else {
-                        activePlayers.push(p);
-                    }
-                }
-            });
-
-            io.to(roomId).emit('update-final-timer', Object.values(room.players));
-
-            if (activePlayers.length <= 1) {
-                clearInterval(room.finalRoundInterval);
-                room.questionActive = false;
-                
-                const winner = activePlayers[0] || Object.values(room.players).sort((a,b) => b.timeLeft - a.timeLeft)[0];
-                const winnerQuote = getWinnerQuote(winner ? winner.name : "Κανένας");
-
-                io.to(roomId).emit('game-over', {
-                    players: Object.values(room.players),
-                    winnerName: winner ? winner.name : "Κανένας",
-                    quote: winnerQuote
-                });
-            }
-        }, 1000);
-    }
-
-    function sendFinalQuestion(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-
-        if (room.currentQuestionIndex >= room.loadedQuestions.length) {
-            room.loadedQuestions = getUniqueQuestionsByCategory(room, "General", 15);
-            room.currentQuestionIndex = 0;
-        }
-
-        const q = room.loadedQuestions[room.currentQuestionIndex];
-        room.currentQuestionIndex++;
-
-        room.questionActive = true;
-        room.finalCorrectOrder = 0;
-
-        Object.keys(room.players).forEach(id => {
-            room.players[id].hasAnswered = false;
-        });
-
-        io.to(roomId).emit('new-question', {
-            question: q.question || q.q,
-            options: q.options,
-            round: 6,
-            roundMode: ROUND_MODES[5],
-            category: "ΤΕΛΙΚΟΣ"
-        });
-
-        room.currentFinalQ = q;
-    }
-
-    socket.on('submit-answer', ({ roomId, answerIndex }) => {
-        const room = rooms[roomId];
-        if (!room || !room.questionActive) return;
-
-        const player = room.players[socket.id];
-        if (!player || player.hasAnswered || player.eliminated) return;
-
-        player.hasAnswered = true;
-
-        if (room.currentRound === 6) {
-            const correctIdx = getCorrectIndex(room.currentFinalQ);
-            const isCorrect = (answerIndex === correctIdx);
-            const activePlayers = Object.values(room.players).filter(p => !p.eliminated);
-
-            if (isCorrect) {
-                player.timeLeft += 5;
-
-                if (activePlayers.length === 2 && room.finalCorrectOrder === 0) {
-                    const sortedTwo = [...activePlayers].sort((a,b) => b.timeLeft - a.timeLeft);
-                    const leader = sortedTwo[0];
-                    
-                    if (leader.id !== player.id && leader.timeLeft >= 5) {
-                        leader.timeLeft -= 5;
-                        player.timeLeft += 5;
-                    }
-                }
-                room.finalCorrectOrder++;
-            } else {
-                player.timeLeft = Math.max(0, player.timeLeft - 10);
-                if (player.timeLeft === 0) player.eliminated = true;
-            }
-
-            socket.emit('answer-recorded', { isCorrect });
-            socket.emit('update-single-player-score', { score: player.score, timeLeft: player.timeLeft });
-            io.to(room.hostId).emit('update-players', Object.values(room.players));
-
-            const remainingActive = Object.values(room.players).filter(p => !p.eliminated);
-            const allAnswered = remainingActive.every(p => p.hasAnswered);
-
-            if (allAnswered && remainingActive.length > 0) {
-                revealAnswerAndNext(roomId, correctIdx);
-            }
+        if (!questionObj) {
+            io.to(roomId).emit('error-msg', 'Δεν βρέθηκαν ερωτήσεις για αυτή την κατηγορία!');
             return;
         }
 
-        const roundMode = ROUND_MODES[room.currentRound - 1];
-        const currentQ = room.loadedQuestions[room.currentQuestionIndex];
-        const correctIdx = getCorrectIndex(currentQ);
-        const isCorrect = (answerIndex === correctIdx);
+        room.questionState = {
+            category,
+            question: questionObj.question,
+            options: questionObj.options,
+            correctIndex: questionObj.correctIndex,
+            answers: {}
+        };
 
-        if (roundMode.id === 1) {
-            if (isCorrect) {
-                const pointsTable = [30, 20, 10];
-                player.score += pointsTable[room.correctAnswersOrder] || 10;
-                room.correctAnswersOrder++;
-            }
-        } else if (roundMode.id === 2) {
-            if (socket.id === room.buzzedPlayerId) {
-                if (isCorrect) player.score += 30;
-                else player.score = Math.max(0, player.score - 10);
-                room.questionActive = false;
-            }
-        } else if (roundMode.id === 3) {
-            if (isCorrect) {
-                player.score += 20;
-                const others = Object.values(room.players).filter(p => p.id !== socket.id).sort((a,b) => b.score - a.score);
-                if (others.length > 0 && others[0].score >= 20) others[0].score -= 20;
-            }
-        } else if (roundMode.id === 4) {
-            if (isCorrect) player.score += 20;
-        } else if (roundMode.id === 5) {
-            if (isCorrect) player.score += 60;
-        }
+        // Αποστολή ερώτησης στον Host και στους Παίκτες
+        io.to(room.hostId).emit('new-question-host', {
+            round: room.currentRound,
+            category: category,
+            question: questionObj.question,
+            options: questionObj.options
+        });
 
-        socket.emit('answer-recorded', { isCorrect });
-        socket.emit('update-single-player-score', { score: player.score, timeLeft: player.timeLeft });
-        io.to(room.hostId).emit('update-players', Object.values(room.players));
+        io.to(roomId).emit('new-question', {
+            round: room.currentRound,
+            category: category,
+            options: questionObj.options
+        });
+    });
 
-        const allAnswered = Object.values(room.players).every(p => p.hasAnswered);
-        if (allAnswered || roundMode.id === 2) {
-            if (room.timer) clearInterval(room.timer);
-            revealAnswerAndNext(roomId, correctIdx);
+    // Ενεργοποίηση Απαντήσεων (από τον Host)
+    socket.on('enable-answers-host', ({ roomId }) => {
+        io.to(roomId).emit('enable-answers');
+    });
+
+    // Υποβολή Απάντησης από Παίκτη
+    socket.on('submit-answer', ({ roomId, answerIndex }) => {
+        const room = rooms[roomId];
+        if (!room || !room.questionState) return;
+
+        room.questionState.answers[socket.id] = answerIndex;
+
+        // Έλεγχος αν απάντησαν όλοι
+        if (Object.keys(room.questionState.answers).length === room.players.length) {
+            // Υπολογισμός βαθμολογίας
+            room.players.forEach(p => {
+                const playerAns = room.questionState.answers[p.id];
+                if (playerAns === room.questionState.correctIndex) {
+                    p.score += 10;
+                }
+                p.ready = false; // Reset ready status
+                io.to(p.id).emit('update-single-player-score', { score: p.score });
+            });
+
+            io.to(room.hostId).emit('round-results', {
+                correctIndex: room.questionState.correctIndex,
+                players: room.players
+            });
+
+            io.to(roomId).emit('round-ended');
         }
     });
 
-    function nextQuestionInternal(roomId) {
-        const room = rooms[roomId];
-        if (!room) return;
-        room.currentQuestionIndex++;
-        sendQuestion(roomId);
-    }
-
+    // Αποσύνδεση
     socket.on('disconnect', () => {
-        Object.keys(rooms).forEach(roomId => {
+        console.log('❌ Αποσύνδεση:', socket.id);
+        for (const roomId in rooms) {
             const room = rooms[roomId];
-            if (room && room.players[socket.id]) {
-                delete room.players[socket.id];
-                io.to(room.hostId).emit('update-players', Object.values(room.players));
-            }
-        });
+            room.players = room.players.filter(p => p.id !== socket.id);
+            io.to(room.hostId).emit('update-players', room.players);
+        }
     });
 });
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`PartyQuiz Game Running on http://localhost:${PORT}`);
+    console.log(`🚀 Ο διακομιστής τρέχει στη θύρα ${PORT}`);
 });
