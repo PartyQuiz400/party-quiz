@@ -3,22 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Quiz Game</title>
+    <title>PartyQuiz - Καλώς Ήρθατε</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0b0c10;
+            color: white;
+            text-align: center;
+            padding: 40px 20px;
+            margin: 0;
+        }
+        h1 { font-size: 42px; color: #66fcf1; margin-bottom: 10px; }
+        p { font-size: 18px; color: #c5c6c7; margin-bottom: 30px; }
+        .card-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .card {
+            background: #1f2833;
+            border: 2px solid #45a29e;
+            border-radius: 12px;
+            padding: 30px;
+            width: 260px;
+            text-decoration: none;
+            color: white;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+        .card:hover {
+            transform: translateY(-5px);
+            border-color: #66fcf1;
+        }
+        .card h2 { color: #66fcf1; margin-top: 0; }
+        .btn-join {
+            background: #45a29e;
+            color: #0b0c10;
+            border: none;
+            padding: 12px 20px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 8px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 15px;
+        }
+        input {
+            width: 90%;
+            padding: 12px;
+            font-size: 16px;
+            border-radius: 6px;
+            border: none;
+            margin-top: 10px;
+            text-align: center;
+        }
+    </style>
 </head>
 <body>
+
+    <h1>🎉 PartyQuiz 🎉</h1>
+    <p>Επιλέξτε τρόπο εισόδου για να ξεκινήσετε το παιχνίδι!</p>
+
+    <div class="card-container">
+        <!-- Κάρτα Host -->
+        <a href="/host.html" class="card">
+            <h2>🖥️ Δημιουργία Δωματίου (Host)</h2>
+            <p>Για προβολή στην τηλεόραση ή στην κεντρική οθόνη του παιχνιδιού.</p>
+            <button class="btn-join">Έναρξη ως Host</button>
+        </a>
+
+        <!-- Κάρτα Παίκτη -->
+        <div class="card">
+            <h2>📱 Είσοδος ως Παίκτης</h2>
+            <p>Για συμμετοχή από το κινητό ή το τάμπλετ σου.</p>
+            <input type="text" id="room-input" placeholder="Κωδικός Δωματίου">
+            <button class="btn-join" onclick="goToPlayer()">Είσοδος στο Παιχνίδι</button>
+        </div>
+    </div>
+
     <script>
-        function isMobile() {
-            return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-        }
-
-        // Παίρνουμε παραμέτρους από το URL αν υπάρχουν (π.χ. από QR code)
-        const urlParams = new URLSearchParams(window.location.search);
-        const room = urlParams.get('room');
-
-        if (isMobile() || room) {
-            window.location.href = `/player.html${room ? '?room=' + room : ''}`;
-        } else {
-            window.location.href = '/host.html';
+        function goToPlayer() {
+            const code = document.getElementById('room-input').value.trim();
+            if (code) {
+                window.location.href = `/player.html?room=${code}`;
+            } else {
+                window.location.href = `/player.html`;
+            }
         }
     </script>
 </body>
