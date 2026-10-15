@@ -14,6 +14,15 @@
             padding: 20px;
         }
         h1 { color: #66fcf1; font-size: 36px; margin-bottom: 10px; }
+        
+        .setup-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+
         .room-code-box {
             background: #1f2833;
             border: 3px solid #66fcf1;
@@ -23,8 +32,18 @@
             font-size: 32px;
             font-weight: bold;
             color: #45a29e;
-            margin: 15px 0;
+            margin: 10px 0;
         }
+
+        #qrcode {
+            background: #ffffff;
+            padding: 12px;
+            border-radius: 12px;
+            display: inline-block;
+            box-shadow: 0 0 15px rgba(102, 252, 241, 0.3);
+            margin: 10px 0;
+        }
+
         .players-container {
             display: flex;
             flex-wrap: wrap;
@@ -32,6 +51,7 @@
             gap: 15px;
             margin: 20px 0;
         }
+
         .player-card {
             background: #1f2833;
             border: 2px solid #45a29e;
@@ -39,10 +59,12 @@
             padding: 15px 25px;
             min-width: 120px;
         }
+
         .player-card.ready {
             border-color: #28a745;
             background: #143d22;
         }
+
         .player-name { font-size: 20px; font-weight: bold; color: #fff; }
         .player-score { font-size: 18px; color: #ffeb3b; }
         
@@ -67,6 +89,7 @@
             margin: 20px auto;
             max-width: 600px;
         }
+
         .options-list {
             list-style: none;
             padding: 0;
@@ -74,6 +97,7 @@
             max-width: 400px;
             margin: 0 auto;
         }
+
         .options-list li {
             padding: 10px;
             margin: 5px 0;
@@ -86,10 +110,15 @@
 
     <h1>PartyQuiz Host Screen</h1>
 
-    <div id="setup-screen">
-        <p style="font-size: 20px;">Κωδικός Δωματίου:</p>
+    <div id="setup-screen" class="setup-container">
+        <p style="font-size: 20px; margin-bottom: 0;">Κωδικός Δωματίου:</p>
         <div class="room-code-box" id="room-code">Δημιουργία...</div>
-        <p id="difficulty-display" style="color: #66fcf1;">Δυσκολία: Easy</p>
+        
+        <!-- Περιοχή Εμφάνισης QR Code -->
+        <div id="qrcode"></div>
+        <p style="font-size: 14px; color: #888; margin-top: -5px;">Σκανάρετε με το κινητό σας για άμεση σύνδεση</p>
+
+        <p id="difficulty-display" style="color: #66fcf1; font-weight: bold;">Δυσκολία: EASY</p>
         
         <h3>Συνδεδεμένοι Παίκτες:</h3>
         <div class="players-container" id="players-list">
@@ -112,6 +141,8 @@
         <div class="players-container" id="results-players-list"></div>
     </div>
 
+    <!-- Βιβλιοθήκη παραγωγής QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
@@ -123,6 +154,20 @@
         socket.on('room-created', (data) => {
             currentRoomId = data.roomId;
             document.getElementById('room-code').innerText = currentRoomId;
+
+            // Δημιουργία URL για τον παίκτη (π.χ. https://party-quiz-wete.onrender.com/player.html?room=2346)
+            const playerUrl = `${window.location.origin}/player.html?room=${currentRoomId}`;
+
+            // Καθαρισμός και παραγωγή νέου QR Code
+            document.getElementById('qrcode').innerHTML = "";
+            new QRCode(document.getElementById("qrcode"), {
+                text: playerUrl,
+                width: 160,
+                height: 160,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
         });
 
         socket.on('difficulty-updated', (data) => {
@@ -186,7 +231,7 @@
 
             setTimeout(() => {
                 document.getElementById('results-screen').style.display = 'none';
-                document.getElementById('setup-screen').style.display = 'block';
+                document.getElementById('setup-screen').style.display = 'flex';
             }, 4000);
         });
 
