@@ -84,25 +84,26 @@
         .question-box {
             background: #1f2833;
             border: 2px solid #ffeb3b;
-            padding: 20px;
+            padding: 25px;
             border-radius: 12px;
             margin: 20px auto;
-            max-width: 600px;
+            max-width: 650px;
         }
 
-        .options-list {
-            list-style: none;
-            padding: 0;
-            text-align: left;
-            max-width: 400px;
-            margin: 0 auto;
+        .options-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-top: 20px;
         }
 
-        .options-list li {
-            padding: 10px;
-            margin: 5px 0;
+        .option-item {
+            padding: 15px;
             background: #0b0c10;
-            border-radius: 6px;
+            border: 1px solid #45a29e;
+            border-radius: 8px;
+            font-size: 18px;
+            text-align: left;
         }
     </style>
 </head>
@@ -114,11 +115,11 @@
         <p style="font-size: 20px; margin-bottom: 0;">Κωδικός Δωματίου:</p>
         <div class="room-code-box" id="room-code">Δημιουργία...</div>
         
-        <!-- Περιοχή Εμφάνισης QR Code -->
         <div id="qrcode"></div>
         <p style="font-size: 14px; color: #888; margin-top: -5px;">Σκανάρετε με το κινητό σας για άμεση σύνδεση</p>
 
         <p id="difficulty-display" style="color: #66fcf1; font-weight: bold;">Δυσκολία: EASY</p>
+        <p id="status-message" style="color: #ffeb3b; font-size: 20px; font-weight: bold;"></p>
         
         <h3>Συνδεδεμένοι Παίκτες:</h3>
         <div class="players-container" id="players-list">
@@ -129,36 +130,31 @@
     <div id="game-screen" style="display: none;">
         <div class="question-box">
             <h2 id="round-title" style="color: #66fcf1;"></h2>
-            <h3 id="question-text" style="color: #fff;"></h3>
-            <ul class="options-list" id="options-list"></ul>
-            <button class="btn-action" id="enable-btn" onclick="enableAnswers()">Ενεργοποίηση Απαντήσεων στους Παίκτες</button>
+            <h3 id="question-text" style="color: #fff; font-size: 24px;"></h3>
+            <div class="options-grid" id="options-grid"></div>
+            <button class="btn-action" id="enable-btn" onclick="enableAnswers()">🔔 Ενεργοποίηση Απαντήσεων στους Παίκτες</button>
         </div>
     </div>
 
     <div id="results-screen" style="display: none;">
         <h2>Αποτελέσματα Γύρου</h2>
-        <p id="correct-answer-text" style="color: #28a745; font-size: 22px; font-weight: bold;"></p>
+        <p id="correct-answer-text" style="color: #28a745; font-size: 24px; font-weight: bold;"></p>
         <div class="players-container" id="results-players-list"></div>
     </div>
 
-    <!-- Βιβλιοθήκη παραγωγής QR Code -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
         let currentRoomId = null;
 
-        // Δημιουργία δωματίου μόλις φορτώσει η σελίδα
         socket.emit('create-room');
 
         socket.on('room-created', (data) => {
             currentRoomId = data.roomId;
             document.getElementById('room-code').innerText = currentRoomId;
 
-            // Δημιουργία URL για τον παίκτη (π.χ. https://party-quiz-wete.onrender.com/player.html?room=2346)
             const playerUrl = `${window.location.origin}/player.html?room=${currentRoomId}`;
-
-            // Καθαρισμός και παραγωγή νέου QR Code
             document.getElementById('qrcode').innerHTML = "";
             new QRCode(document.getElementById("qrcode"), {
                 text: playerUrl,
@@ -174,7 +170,6 @@
             document.getElementById('difficulty-display').innerText = `Δυσκολία: ${data.difficulty.toUpperCase()}`;
         });
 
-        // Ενημέρωση λίστας παικτών
         socket.on('update-players', (players) => {
             const container = document.getElementById('players-list');
             if (players.length === 0) {
@@ -192,7 +187,10 @@
             `).join('');
         });
 
-        // Εμφάνιση Ερώτησης
+        socket.on('category-selection-started', (data) => {
+            document.getElementById('status-message').innerText = `🎯 Ο/Η "${data.chooserName}" επιλέγει κατηγορία...`;
+        });
+
         socket.on('new-question-host', (data) => {
             document.getElementById('setup-screen').style.display = 'none';
             document.getElementById('results-screen').style.display = 'none';
@@ -201,9 +199,9 @@
             document.getElementById('round-title').innerText = `Γύρος ${data.round} - ${data.category}`;
             document.getElementById('question-text').innerText = data.question;
             
-            const optionsList = document.getElementById('options-list');
-            optionsList.innerHTML = data.options.map((opt, idx) => `
-                <li><strong>${String.fromCharCode(65 + idx)}:</strong> ${opt}</li>
+            const grid = document.getElementById('options-grid');
+            grid.innerHTML = data.options.map((opt, idx) => `
+                <div class="option-item"><strong>${String.fromCharCode(65 + idx)}:</strong> ${opt}</div>
             `).join('');
 
             document.getElementById('enable-btn').style.display = 'inline-block';
@@ -214,7 +212,6 @@
             document.getElementById('enable-btn').style.display = 'none';
         }
 
-        // Αποτελέσματα γύρου
         socket.on('round-results', (data) => {
             document.getElementById('game-screen').style.display = 'none';
             document.getElementById('results-screen').style.display = 'block';
@@ -232,11 +229,8 @@
             setTimeout(() => {
                 document.getElementById('results-screen').style.display = 'none';
                 document.getElementById('setup-screen').style.display = 'flex';
+                document.getElementById('status-message').innerText = "";
             }, 4000);
-        });
-
-        socket.on('error-msg', (msg) => {
-            alert(msg);
         });
     </script>
 </body>
