@@ -72,9 +72,7 @@
             cursor: pointer; 
             display: block; 
         }
-        #buzzer-btn:active { 
-            transform: scale(0.95); 
-        }
+        #buzzer-btn:active { transform: scale(0.95); }
 
         .status-box { 
             background: #1e1e1e; 
@@ -102,9 +100,9 @@
 
         <div id="difficulty-selector" style="display: none; margin-bottom: 20px;">
             <h4>Επιλογή Δυσκολίας Ερωτήσεων:</h4>
-            <button class="btn-diff selected" onclick="setDifficulty('easy', this)">Εύκολο</button>
+            <button class="btn-diff" onclick="setDifficulty('easy', this)">Εύκολο</button>
             <button class="btn-diff" onclick="setDifficulty('medium', this)">Μεσαίο</button>
-            <button class="btn-diff" onclick="setDifficulty('hard', this)">Δύσκολο</button>
+            <button class="btn-diff selected" onclick="setDifficulty('hard', this)">Δύσκολο</button>
         </div>
 
         <button id="buzzer-btn" onclick="pressBuzzer()">BUZZER / READY</button>
@@ -129,10 +127,7 @@
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
-        // Αυτόματη σύνδεση στο Socket.IO χρησιμοποιώντας το τρέχον host/protocol του Render
-        const socket = io({
-            transports: ['websocket', 'polling']
-        });
+        const socket = io({ transports: ['websocket', 'polling'] });
 
         const urlParams = new URLSearchParams(window.location.search);
         let roomId = urlParams.get('room');
@@ -205,7 +200,7 @@
             document.getElementById('quiz-screen').style.display = 'block';
 
             document.getElementById('question-info').innerText = `Γύρος ${data.round} - ${data.category}`;
-            document.getElementById('answering-status').innerText = "Αναμονή για την εκφώνηση...";
+            document.getElementById('answering-status').innerText = "Αναμονή για την εκφώνηση από τον Host...";
 
             [0, 1, 2, 3].forEach(idx => {
                 const btn = document.getElementById(`btn-${idx}`);
@@ -240,12 +235,10 @@
             document.getElementById('quiz-screen').style.display = 'none';
             document.getElementById('category-screen').style.display = 'none';
             document.getElementById('lobby-screen').style.display = 'block';
-            document.getElementById('ready-msg').innerText = "Αναμονή για τον επόμενο γύρο...";
+            document.getElementById('ready-msg').innerText = "Πατήστε ξανά το Buzzer για τον επόμενο γύρο!";
         });
 
-        socket.on('error-msg', (msg) => {
-            alert(msg);
-        });
+        socket.on('error-msg', (msg) => { alert(msg); });
     </script>
 </body>
 </html>
