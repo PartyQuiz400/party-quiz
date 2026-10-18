@@ -7,7 +7,6 @@ const fs = require('fs');
 const app = express();
 const server = http.createServer(app);
 
-// Ρύθμιση Socket.IO με υποστήριξη CORS για Render
 const io = new Server(server, {
     cors: {
         origin: "*",
@@ -15,10 +14,8 @@ const io = new Server(server, {
     }
 });
 
-// Σερβίρισμα στατικών αρχείων από τον φάκελο public
 app.use(express.static(path.join(__dirname, 'public')));
 
-// Explicit Routes
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'public', 'index.html'));
 });
@@ -41,7 +38,6 @@ try {
     console.error("❌ Σφάλμα κατά τη φόρτωση του questions.json:", err);
 }
 
-// Διαχείριση Δωματίων (Rooms State)
 const rooms = {};
 
 function generateRoomCode() {
@@ -51,7 +47,6 @@ function generateRoomCode() {
 io.on('connection', (socket) => {
     console.log('🔌 Νέα σύνδεση:', socket.id);
 
-    // Δημιουργία Δωματίου από Host
     socket.on('create-room', () => {
         const roomId = generateRoomCode();
         rooms[roomId] = {
@@ -63,14 +58,12 @@ io.on('connection', (socket) => {
         };
         socket.join(roomId);
         socket.emit('room-created', { roomId });
-        console.log(`🏠 Δημιουργήθηκε το δωμάτιο: ${roomId}`);
     });
 
-    // Είσοδος Παίκτη
     socket.on('join-room', ({ roomId, playerName }) => {
         const room = rooms[roomId];
         if (!room) {
-            socket.emit('error-msg', 'Το δωμάτιο δεν υπάρχει! Ελέγξτε τον κωδικό.');
+            socket.emit('error-msg', 'Το δωμάτιο δεν υπάρχει!');
             return;
         }
 
@@ -93,19 +86,16 @@ io.on('connection', (socket) => {
         });
 
         io.to(room.hostId).emit('update-players', room.players);
-        console.log(`👤 Ο παίκτης ${playerName} μπήκε στο δωμάτιο ${roomId}`);
     });
 
-    // Ρύθμιση Δυσκολίας
     socket.on('set-difficulty', ({ roomId, difficulty }) => {
         const room = rooms[roomId];
         if (room) {
-            room.difficulty = difficulty;
-            io.to(room.hostId).emit('difficulty-updated', { difficulty });
+            room.difficulty = difficulty.toLowerCase();
+            io.to(room.hostId).emit('difficulty-updated', { difficulty: room.difficulty });
         }
     });
 
-    // Πάτημα Buzzer / Ready
     socket.on('press-buzzer', ({ roomId }) => {
         const room = rooms[roomId];
         if (!room) return;
@@ -115,11 +105,19 @@ io.on('connection', (socket) => {
             player.ready = true;
             io.to(room.hostId).emit('update-players', room.players);
 
+            // Αν όλοι είναι έτοιμοι, επιλέγουμε τυχαία έναν παίκτη να διαλέξει κατηγορία
             const allReady = room.players.every(p => p.ready);
             if (allReady && room.players.length > 0) {
                 const chooser = room.players[Math.floor(Math.random() * room.players.length)];
-                const categories = Object.keys(rawQuestions[room.difficulty] || rawQuestions['easy'] || {});
                 
+                // Παίρνουμε τις κατηγορίες βάσει της δυσκολίας
+                const diffData = rawQuestions[room.difficulty] || rawQuestions['easy'] || {};
+                const categories = Object.keys(diffData);
+
+                // Ειδοποίηση Host
+                io.to(room.hostId).emit('category-selection-started', { chooserName: chooser.name });
+
+                // Ειδοποίηση Παικτών
                 room.players.forEach(p => {
                     io.to(p.id).emit('prompt-category-selection', {
                         isChooser: p.id === chooser.id,
@@ -131,13 +129,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Επιλογή Κατηγορίας
     socket.on('select-category', ({ roomId, category }) => {
         const room = rooms[roomId];
         if (!room) return;
 
         room.currentRound++;
-        const categoryQuestions = (rawQuestions[room.difficulty] && rawQuestions[room.difficulty][category]) || [];
+        const diffData = rawQuestions[room.difficulty] || rawQuestions['easy'] || {};
+        const categoryQuestions = diffData[category] || [];
         const questionObj = categoryQuestions[Math.floor(Math.random() * categoryQuestions.length)];
 
         if (!questionObj) {
@@ -153,6 +151,7 @@ io.on('connection', (socket) => {
             answers: {}
         };
 
+        // Αποστολή στον Host (περιλαμβάνει και τη σωστή απάντηση)
         io.to(room.hostId).emit('new-question-host', {
             round: room.currentRound,
             category: category,
@@ -160,6 +159,7 @@ io.on('connection', (socket) => {
             options: questionObj.options
         });
 
+        // Αποστολή στους Παίκτες
         io.to(roomId).emit('new-question', {
             round: room.currentRound,
             category: category,
@@ -167,25 +167,24 @@ io.on('connection', (socket) => {
         });
     });
 
-    // Ενεργοποίηση Απαντήσεων (από τον Host)
     socket.on('enable-answers-host', ({ roomId }) => {
         io.to(roomId).emit('enable-answers');
     });
 
-    // Υποβολή Απάντησης από Παίκτη
     socket.on('submit-answer', ({ roomId, answerIndex }) => {
         const room = rooms[roomId];
         if (!room || !room.questionState) return;
 
         room.questionState.answers[socket.id] = answerIndex;
 
+        // Όταν απαντήσουν όλοι οι παίκτες
         if (Object.keys(room.questionState.answers).length === room.players.length) {
             room.players.forEach(p => {
                 const playerAns = room.questionState.answers[p.id];
                 if (playerAns === room.questionState.correctIndex) {
                     p.score += 10;
                 }
-                p.ready = false;
+                p.ready = false; // Reset ready status για τον επόμενο γύρο
                 io.to(p.id).emit('update-single-player-score', { score: p.score });
             });
 
@@ -198,9 +197,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Αποσύνδεση
     socket.on('disconnect', () => {
-        console.log('❌ Αποσύνδεση:', socket.id);
         for (const roomId in rooms) {
             const room = rooms[roomId];
             room.players = room.players.filter(p => p.id !== socket.id);
@@ -209,7 +206,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// Η θύρα ορίζεται δυναμικά από το Render μέσω της μεταβλητής process.env.PORT
 const PORT = process.env.PORT || 10000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`🚀 Ο διακομιστής τρέχει στη θύρα ${PORT}`);
